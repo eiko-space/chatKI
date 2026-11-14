@@ -8,7 +8,7 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
 use windows_sys::Win32::System::ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
 use windows_sys::Win32::System::RemoteDesktop::ProcessIdToSessionId;
 use windows_sys::Win32::System::Threading::*;
-use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowThreadProcessId, PostMessageW, WM_CLOSE};
+use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowLongW, GetWindowTextLengthW, GetWindowThreadProcessId, IsWindowVisible, PostMessageW, GWL_EXSTYLE, WM_CLOSE, WS_EX_TOOLWINDOW};
 
 #[derive(Clone, Debug)]
 pub struct Proc {
@@ -193,4 +193,23 @@ pub fn set_gpu_priority(pid: u32, class: i32) -> Result<(), String> {
     // SAFETY: gültiges Handle und gültige Prioritätsklasse.
     let st = unsafe { D3DKMTSetProcessSchedulingPriorityClass(h.0, class) };
     if st >= 0 { Ok(()) } else { Err(format!("GPU-Priorität nicht änderbar (Status 0x{st:08X})")) }
+}
+
+unsafe extern "system" fn collect_visible(hwnd: HWND, lparam: LPARAM) -> i32 {
+    let set = &mut *(lparam as *mut std::collections::HashSet<u32>);
+    // Sichtbar, mit Titel und kein reines Werkzeugfenster = ein Fenster, das der Nutzer sieht
+    if IsWindowVisible(hwnd) != 0 && GetWindowTextLengthW(hwnd) > 0 && (GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOOLWINDOW) == 0 {
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        set.insert(pid);
+    }
+    1
+}
+
+/// Prozesse, die mindestens ein sichtbares Fenster haben (z. B. geöffnete Programme mit evtl. ungespeicherten Daten).
+pub fn pids_with_visible_windows() -> std::collections::HashSet<u32> {
+    let mut set = std::collections::HashSet::new();
+    // SAFETY: Callback schreibt nur in das übergebene HashSet, das während des Aufrufs lebt.
+    unsafe { EnumWindows(Some(collect_visible), &mut set as *mut _ as LPARAM) };
+    set
 }

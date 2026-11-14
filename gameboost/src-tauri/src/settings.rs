@@ -77,7 +77,10 @@ impl Default for Settings {
         Self {
             enabled_tweaks: crate::boost::catalog().iter().filter(|t| t.default_on).map(|t| t.id.to_string()).collect(),
             // Cloud-Sync-Programme: verursachen im Spiel Festplatten- und Netzwerklast, starten nach dem Spiel wieder.
-            background_apps: ["OneDrive.exe", "Dropbox.exe", "GoogleDriveFS.exe", "CCXProcess.exe", "Creative Cloud.exe", "CoreSync.exe", "AdobeIPCBroker.exe"]
+            background_apps: [
+                "OneDrive.exe", "Dropbox.exe", "GoogleDriveFS.exe", "CCXProcess.exe", "Creative Cloud.exe", "CoreSync.exe", "AdobeIPCBroker.exe",
+                "Widgets.exe", "WidgetService.exe", "PhoneExperienceHost.exe", "msedgewebview2_widgets.exe", "MicrosoftEdgeUpdate.exe", "GoogleUpdate.exe",
+            ]
                 .iter()
                 .map(|e| BackgroundApp { exe: e.to_string(), enabled: true })
                 .collect(),

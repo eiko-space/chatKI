@@ -26,6 +26,7 @@ mod stub {
     pub fn memory_status() -> Option<(f64, f64)> { None }
     pub fn device_power() -> Applied { Err(NA.into()) }
     pub fn cpu_full() -> Applied { Err(NA.into()) }
+    pub fn close_background(_mic: &[String], _game: Option<&str>) -> Applied { Err(NA.into()) }
     pub fn background_priority(_mic: &[String]) -> Applied { Err(NA.into()) }
     pub fn mouse_accel() -> Applied { Err(NA.into()) }
     pub fn no_interruptions() -> Applied { Err(NA.into()) }
@@ -181,6 +182,50 @@ mod imp {
         }
         let revert = (!closed.is_empty()).then_some(Revert::ClosedApps { apps: closed });
         Ok((msg, revert))
+    }
+
+    /// Beendet alle Programme der eigenen Sitzung, die OHNE sichtbares Fenster laufen und nicht geschützt sind.
+    pub fn close_background(mic: &[String], game_exe: Option<&str>) -> Applied {
+        let windir = std::env::var("WINDIR").unwrap_or_else(|_| r"C:\Windows".into()).to_ascii_lowercase();
+        let visible = process::pids_with_visible_windows();
+        let all = process::list();
+        // Programme, von denen IRGENDEIN Prozess ein Fenster hat (z. B. Chrome mit seinen Tab-Prozessen), bleiben komplett an.
+        let visible_names: std::collections::HashSet<String> = all.iter().filter(|p| visible.contains(&p.pid)).map(|p| p.name.to_ascii_lowercase()).collect();
+        let me = std::process::id();
+        let mut closed: Vec<ClosedApp> = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for p in &all {
+            let lower = p.name.to_ascii_lowercase();
+            if p.pid == me || p.pid <= 4 || visible_names.contains(&lower) || seen.contains(&lower) {
+                continue;
+            }
+            if game_exe.is_some_and(|g| g.eq_ignore_ascii_case(&p.name)) || protect::check(&p.name, mic).is_some() {
+                continue;
+            }
+            if !process::in_my_session(p.pid) {
+                continue;
+            }
+            // Alles aus dem Windows-Ordner gehört zu Windows → nie anfassen
+            let Some(path) = process::path(p.pid) else { continue };
+            let lpath = path.to_ascii_lowercase();
+            if lpath.starts_with(&windir) || lpath.contains(r"\windowsapps\microsoft.windows") {
+                continue;
+            }
+            // Gleichnamige Prozesse (z. B. Helfer mit mehreren Instanzen) alle beenden, aber nur einmal neu starten
+            let mut any = false;
+            for q in all.iter().filter(|q| q.name.eq_ignore_ascii_case(&p.name)) {
+                any |= process::close(q.pid).is_ok();
+            }
+            seen.insert(lower);
+            if any {
+                closed.push(ClosedApp { name: p.name.clone(), path });
+            }
+        }
+        if closed.is_empty() {
+            return Ok(("Keine unnötigen Hintergrund-Programme gefunden.".into(), None));
+        }
+        let names: Vec<&str> = closed.iter().map(|c| c.name.as_str()).collect();
+        Ok((format!("{} beendet: {}. Sie starten nach dem Boost wieder.", closed.len(), names.join(", ")), Some(Revert::ClosedApps { apps: closed })))
     }
 
     // ------------------------------------------------------------------ Registry (nur HKCU)
@@ -656,13 +701,18 @@ mod imp {
                 Ok("Einstellungen wiederhergestellt.".into())
             }
             Revert::Services { names } => {
-                let mut errs = Vec::new();
+                // Diese Dienste startet Windows bei Bedarf ohnehin selbst – Fehler hier sind kein Problem.
+                let mut started = 0;
                 for n in names {
-                    if let Err(e) = svc::open(n).and_then(|h| svc::start(&h)) {
-                        errs.push(format!("{n}: {e}"));
+                    if svc::open(n).and_then(|h| if svc::running(&h) { Ok(()) } else { svc::start(&h) }).is_ok() {
+                        started += 1;
                     }
                 }
-                if errs.is_empty() { Ok("Update-Dienste laufen wieder.".into()) } else { Err(errs.join("; ")) }
+                Ok(if started == names.len() {
+                    "Update-Dienste laufen wieder.".into()
+                } else {
+                    "Update-Dienste werden von Windows bei Bedarf automatisch wieder gestartet.".into()
+                })
             }
             Revert::Wlan { interfaces } => {
                 let c = wlan::open().ok_or("WLAN-Dienst nicht erreichbar")?;
@@ -824,6 +874,22 @@ mod windows_tests {
                 Err(e) => println!("{name}: nicht möglich: {e}"),
             }
         }
+    }
+
+    #[test]
+    #[ignore = "beendet Programme – nur in CI"]
+    fn close_background_apply_and_revert() {
+        match close_background(&[], None) {
+            Ok((m, rev)) => {
+                println!("{m}");
+                if let Some(r) = rev {
+                    println!("zurück: {}", revert(&r).expect("revert"));
+                }
+            }
+            Err(e) => println!("nicht möglich: {e}"),
+        }
+        // Explorer & eigener Prozess müssen noch laufen
+        assert!(crate::win::process::list().iter().any(|p| p.pid == std::process::id()));
     }
 
     #[test]

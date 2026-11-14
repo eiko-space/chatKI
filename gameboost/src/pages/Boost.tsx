@@ -7,6 +7,7 @@ import { Toggle } from "../components/ui/Toggle";
 import { ResultList } from "../components/ui/ResultList";
 import { BoostControl } from "../components/BoostControl";
 import { MeasureWizard } from "../components/MeasureWizard";
+import { SmartBoost } from "../components/SmartBoost";
 import { useAppState } from "../lib/app-state";
 import { api, type LogEntry, type PermanentItem, type TweakInfo } from "../lib/api";
 import { isTauri, type AppInfo } from "../lib/tauri";
@@ -54,6 +55,10 @@ export default function Boost({ info }: { info: AppInfo | null }) {
           )}
 
         </Card>
+
+        <div className="col-span-12">
+          <SmartBoost />
+        </div>
 
         <div className="col-span-12">
           <MeasureWizard />

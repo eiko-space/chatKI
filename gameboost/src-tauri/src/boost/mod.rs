@@ -105,6 +105,11 @@ pub fn catalog() -> &'static [TweakInfo] {
             details: "Senkt die Priorität von Browsern (Chrome, Edge, Firefox, Opera, Brave …) auf „Niedriger als normal“. Nichts wird beendet – Musik und Videos laufen weiter.",
         },
         TweakInfo {
+            id: "background_all", title: "Alle Hintergrund-Programme beenden", category: "fps", needs_admin: false, default_on: true, one_shot: false,
+            summary: "Beendet alles ohne Fenster im Hintergrund – außer Windows, Virenschutz, Treibern, Voice-Chat & Launchern.",
+            details: "Beendet Tray-Apps, Updater und Helfer, die ohne sichtbares Fenster laufen. Programme mit offenem Fenster bleiben an (keine Datenverluste). Nach dem Boost werden alle wieder gestartet.",
+        },
+        TweakInfo {
             id: "close_apps", title: "Hintergrund-Apps beenden", category: "fps", needs_admin: false, default_on: true, one_shot: false,
             summary: "Beendet nur Apps aus deiner Liste – und startet sie danach wieder.",
             details: "Beendet die Programme aus deiner Liste (Einstellungen → Hintergrund-Apps). Nie beendet werden: Virenschutz, Anti-Cheat, Windows-Prozesse, Voice-Chat (Discord, TeamSpeak …), Spiele-Launcher, Maus-/Headset-Software und alles, was gerade dein Mikrofon benutzt.",
@@ -337,13 +342,11 @@ impl BoostEngine {
             self.log("revert", &a.title, status, &message);
             results.push(TweakResult { id: a.id.clone(), title: a.title.clone(), status: status.into(), message });
         }
-        if failed.is_empty() {
-            let _ = std::fs::remove_file(&self.state_path);
-        } else {
-            // Fehlgeschlagene Rücksetzungen bleiben gespeichert → erneuter Versuch möglich.
-            let rest = BoostState { applied: failed, ..state };
-            self.persist(&rest);
-            *self.state.lock().unwrap() = Some(rest);
+        // Der Boost endet IMMER – sonst hängt er bei einem einzelnen Fehler für immer auf „aktiv“.
+        // Nicht zurücksetzbare Schritte stehen im Ergebnis und im Protokoll.
+        let _ = std::fs::remove_file(&self.state_path);
+        if !failed.is_empty() {
+            self.log("revert", "Hinweis", "info", &format!("{} Schritt(e) konnten nicht zurückgesetzt werden – Windows stellt sie meist selbst wieder her, spätestens nach einem Neustart.", failed.len()));
         }
         progress(total, total, "Fertig");
         self.log("boost", "Boost beendet", "info", "");
@@ -364,6 +367,7 @@ fn run_tweak(t: &TweakInfo, settings: &Settings, game: Option<&GameTarget>, admi
             },
             "cpu_full" => tweaks::cpu_full(),
             "background_priority" => tweaks::background_priority(mic),
+            "background_all" => tweaks::close_background(mic, game.map(|g| g.exe.as_str())),
             "close_apps" => {
                 let apps: Vec<String> = settings.background_apps.iter().filter(|a| a.enabled).map(|a| a.exe.clone()).collect();
                 tweaks::close_apps(&apps, mic)

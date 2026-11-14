@@ -13,6 +13,7 @@ pub enum Reason {
     Peripheral,
     Launcher,
     Game,
+    Driver,
     MicrophoneInUse,
 }
 
@@ -28,6 +29,7 @@ impl Reason {
             Reason::Peripheral => "Maus-/Tastatur-/Headset-Software",
             Reason::Launcher => "Spiele-Launcher",
             Reason::Game => "Spiel",
+            Reason::Driver => "Treiber-/Hardware-Programm",
             Reason::MicrophoneInUse => "Mikrofon gerade aktiv",
         }
     }
@@ -43,7 +45,9 @@ const SYSTEM: &[&str] = &[
     "gameboost.exe", "presentmon.exe", "taskmgr.exe", "wmiprvse.exe", "dashost.exe", "smartscreen.exe",
     "securityhealthsystray.exe", "securityhealthservice.exe", "gamebarpresencewriter.exe", "gamingservices.exe",
     "gamingservicesnet.exe", "nvcontainer.exe", "nvdisplay.container.exe", "atiesrxx.exe", "atieclxx.exe",
-    "igfxem.exe", "amdrsserv.exe",
+    "igfxem.exe", "amdrsserv.exe", "backgroundtaskhost.exe", "useroobebroker.exe", "systemsettingsbroker.exe",
+    "shellhost.exe", "tabtip.exe", "osk.exe", "magnify.exe", "narrator.exe", "rundll32.exe", "msiexec.exe",
+    "trustedinstaller.exe", "tiworker.exe", "ngen.exe", "mscorsvw.exe", "consent.exe", "werfault.exe",
 ];
 
 /// Namensbestandteile (kleingeschrieben) je Kategorie. Lieber zu viel schützen als zu wenig.
@@ -69,6 +73,13 @@ const PATTERNS: &[(Reason, &[&str])] = &[
     (Reason::Peripheral, &[
         "lghub", "logi", "razer", "synapse", "icue", "corsair", "armourycrate", "armoury", "steelseries", "hyperx",
         "ngenuity", "wooting", "roccat", "glorious", "msi center", "dragoncenter", "asus",
+    ]),
+    (Reason::Driver, &[
+        "nvidia", "nvcontainer", "nvsphelper", "nvbackend", "amd", "radeon", "atie", "intel", "igfx", "igcc", "realtek", "rtk",
+        "dolby", "waves", "maxxaudio", "dts", "synaptics", "syntp", "elan", "etd", "alps", "bluetooth", "btstack", "wacom",
+        "tobii", "lenovo", "vantage", "dell", "alienware", "hp", "omen", "acer", "predator", "msi", "gigabyte", "aorus",
+        "nzxt", "hwinfo", "fancontrol", "argus", "openrgb", "signalrgb", "wallpaper", "rainmeter", "displayfusion",
+        "driver", "tray", "audio", "sound", "touchpad", "keyboard", "mouse", "pen", "battery", "power",
     ]),
     (Reason::Launcher, &[
         "steam", "epicgameslauncher", "epicwebhelper", "epiconlineservices", "riotclient", "leagueclient",

@@ -299,3 +299,30 @@ export const labApi = {
   restoreConfig: (id: string) => invoke<string>("restore_game_config", { id }),
   fpsAdvice: () => invoke<FpsAdvice>("fps_advice"),
 };
+
+export interface SmartResult {
+  id: string;
+  title: string;
+  verdict: "better" | "neutral" | "worse" | "skipped";
+  detail: string;
+}
+
+export interface SmartState {
+  running: boolean;
+  percent: number;
+  step: string;
+  game: string | null;
+  results: SmartResult[];
+  before: Measurement | null;
+  after: Measurement | null;
+  kept: string[];
+  error: string | null;
+  finished: boolean;
+  remainingSecs: number;
+}
+
+export const smartApi = {
+  start: () => invoke<void>("start_smart_boost"),
+  cancel: () => invoke<void>("cancel_smart_boost"),
+  state: () => invoke<SmartState | null>("smart_boost_state"),
+};
