@@ -8,7 +8,7 @@ import { isTauri } from "./tauri";
  */
 function cleanUrl(raw: string | undefined): string | undefined {
   if (!raw) return raw;
-  let u = raw.trim().replace(/\s+/g, "");
+  let u = raw.trim().replace(/\s+/g, "").replace(/^["']|["']$/g, "");
   u = u.replace(/\/(rest|auth|storage|realtime)\/v1\/?.*$/i, "");
   u = u.replace(/\/+$/, "");
   if (u && !/^https?:\/\//i.test(u)) u = `https://${u}`;
@@ -16,7 +16,33 @@ function cleanUrl(raw: string | undefined): string | undefined {
 }
 
 const URL = cleanUrl(import.meta.env.VITE_SUPABASE_URL as string | undefined);
-const KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
+const KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim().replace(/^["']|["']$/g, "");
+
+/** Diagnose: Welche Adresse nutzt die App, und antwortet der Server? */
+export async function testConnection(): Promise<{ url: string; ok: boolean; detail: string }> {
+  const url = URL ?? "(keine Adresse eingetragen)";
+  if (!URL || !KEY) return { url, ok: false, detail: "Adresse oder Schlüssel fehlt im Build." };
+  try {
+    const res = await fetch(`${URL}/auth/v1/health`, { headers: { apikey: KEY } });
+    if (res.ok) return { url, ok: true, detail: `Server erreichbar (HTTP ${res.status}).` };
+    const body = await res.text().catch(() => "");
+    const hint =
+      res.status === 401 || /api key/i.test(body)
+        ? " → Der Schlüssel (VITE_SUPABASE_ANON_KEY) ist falsch. Nimm den „anon public“ bzw. „Publishable“ Key."
+        : res.status === 404
+          ? " → Falsche Adresse."
+          : res.status === 503 || res.status === 540
+            ? " → Projekt pausiert? Auf supabase.com auf „Restore“ klicken."
+            : "";
+    return { url, ok: false, detail: `Server antwortet mit HTTP ${res.status}${hint} ${body.slice(0, 120)}` };
+  } catch (e) {
+    return {
+      url,
+      ok: false,
+      detail: `Keine Antwort (${e instanceof Error ? e.message : String(e)}). Mögliche Gründe: Projekt pausiert, Adresse falsch, Firewall/Virenscanner blockiert die App.`,
+    };
+  }
+}
 
 /** Ist ein Supabase-Projekt eingetragen? Sonst läuft die App im Gast-Modus. */
 export const supabaseConfigured = Boolean(URL && KEY && !URL.includes("DEIN-PROJEKT"));
@@ -58,6 +84,7 @@ export function getSupabase(): Promise<SupabaseClient> {
 /** Übersetzt typische Supabase-Fehlermeldungen ins Deutsche. */
 export function authError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
+  if (/invalid api key|no api key/i.test(msg)) return "Der App-Schlüssel ist ungültig (VITE_SUPABASE_ANON_KEY prüfen).";
   const map: [RegExp, string][] = [
     [/invalid login credentials/i, "E-Mail oder Passwort ist falsch."],
     [/email not confirmed/i, "Bitte bestätige zuerst deine E-Mail-Adresse."],
@@ -67,5 +94,8 @@ export function authError(e: unknown): string {
     [/rate limit/i, "Zu viele Versuche. Bitte warte kurz."],
     [/failed to fetch|network/i, "Keine Verbindung zum Server."],
   ];
-  return map.find(([re]) => re.test(msg))?.[1] ?? msg;
+  const found = map.find(([re]) => re.test(msg))?.[1];
+  // Bei Verbindungsproblemen die technische Meldung mit anzeigen – hilft bei der Fehlersuche.
+  if (found === "Keine Verbindung zum Server.") return `Keine Verbindung zum Server (${msg}). Tipp: „Verbindung prüfen“ anklicken.`;
+  return found ?? msg;
 }

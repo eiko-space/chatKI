@@ -6,6 +6,7 @@ import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Details } from "../components/ui/Details";
 import { useAuth } from "../lib/auth";
+import { testConnection } from "../lib/supabase";
 
 type View = "login" | "register" | "confirm" | "forgot" | "reset" | "invite";
 
@@ -53,6 +54,11 @@ export default function Account({ gate = false }: { gate?: boolean }) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [diag, setDiag] = useState<{ url: string; ok: boolean; detail: string } | null>(null);
+  const runDiag = async () => {
+    setDiag({ url: "…", ok: false, detail: "Prüfe …" });
+    setDiag(await testConnection());
+  };
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -263,6 +269,15 @@ export default function Account({ gate = false }: { gate?: boolean }) {
           {(view === "login" || view === "register") && Tabs}
           {form}
           {msg && <p className={`mt-3 text-sm ${msg.ok ? "text-good" : "text-bad"}`}>{msg.text}</p>}
+          <div className="mt-3">
+            <button type="button" className="text-xs text-muted underline hover:text-text" onClick={runDiag}>Verbindung prüfen</button>
+            {diag && (
+              <div className="mt-2 rounded-lg bg-surface-2 p-3 text-[11px] leading-relaxed">
+                <div className="text-faint">Adresse: <span className="text-text">{diag.url}</span></div>
+                <div className={diag.ok ? "text-good" : "text-bad"}>{diag.detail}</div>
+              </div>
+            )}
+          </div>
           {(view === "login" || view === "register") && (
             <>
               {auth.inviteOnly && <p className="mt-4 text-[11px] text-faint">Discord/Google funktionieren nur, wenn für deine E-Mail bereits ein Konto angelegt wurde.</p>}
