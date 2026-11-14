@@ -48,6 +48,7 @@ jobs:
         run: npx tsc -b
 
       - name: Rust-Tests (inkl. Windows-API-Tests)
+        timeout-minutes: 12
         working-directory: gameboost/src-tauri
         run: cargo test --lib -- --include-ignored --nocapture
 

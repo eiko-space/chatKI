@@ -184,8 +184,9 @@ mod imp {
         Ok((msg, revert))
     }
 
-    /// Beendet alle Programme der eigenen Sitzung, die OHNE sichtbares Fenster laufen und nicht geschützt sind.
-    pub fn close_background(mic: &[String], game_exe: Option<&str>) -> Applied {
+    /// Programme der eigenen Sitzung, die OHNE sichtbares Fenster laufen und nicht geschützt sind: (Name, Pfad, PIDs).
+    /// Reines Auswählen ohne Beenden – dadurch im Test gefahrlos.
+    pub fn background_candidates(mic: &[String], game_exe: Option<&str>) -> Vec<(String, String, Vec<u32>)> {
         let windir = std::env::var("WINDIR").unwrap_or_else(|_| r"C:\Windows".into()).to_ascii_lowercase();
         let visible = process::pids_with_visible_windows();
         let all = process::list();
@@ -194,17 +195,13 @@ mod imp {
         let me = std::process::id();
         // Alles, was GameBoost gestartet hat (Eltern-Kette), bleibt unangetastet.
         let parents = process::ancestors(me, &all);
-        let mut closed: Vec<ClosedApp> = Vec::new();
-        let mut seen = std::collections::HashSet::new();
+        let mut out: Vec<(String, String, Vec<u32>)> = Vec::new();
         for p in &all {
             let lower = p.name.to_ascii_lowercase();
-            if p.pid == me || p.pid <= 4 || parents.contains(&p.pid) || visible_names.contains(&lower) || seen.contains(&lower) {
+            if p.pid == me || p.pid <= 4 || parents.contains(&p.pid) || visible_names.contains(&lower) || out.iter().any(|(n, _, _)| n.eq_ignore_ascii_case(&p.name)) {
                 continue;
             }
-            if game_exe.is_some_and(|g| g.eq_ignore_ascii_case(&p.name)) || protect::check(&p.name, mic).is_some() {
-                continue;
-            }
-            if !process::in_my_session(p.pid) {
+            if game_exe.is_some_and(|g| g.eq_ignore_ascii_case(&p.name)) || protect::check(&p.name, mic).is_some() || !process::in_my_session(p.pid) {
                 continue;
             }
             // Alles aus dem Windows-Ordner gehört zu Windows → nie anfassen
@@ -213,14 +210,22 @@ mod imp {
             if lpath.starts_with(&windir) || lpath.contains(r"\windowsapps\microsoft.windows") {
                 continue;
             }
-            // Gleichnamige Prozesse (z. B. Helfer mit mehreren Instanzen) alle beenden, aber nur einmal neu starten
+            let pids = all.iter().filter(|q| q.name.eq_ignore_ascii_case(&p.name) && !parents.contains(&q.pid) && q.pid != me).map(|q| q.pid).collect();
+            out.push((p.name.clone(), path, pids));
+        }
+        out
+    }
+
+    /// Beendet alle Hintergrund-Programme aus `background_candidates`.
+    pub fn close_background(mic: &[String], game_exe: Option<&str>) -> Applied {
+        let mut closed: Vec<ClosedApp> = Vec::new();
+        for (name, path, pids) in background_candidates(mic, game_exe) {
             let mut any = false;
-            for q in all.iter().filter(|q| q.name.eq_ignore_ascii_case(&p.name) && !parents.contains(&q.pid) && q.pid != me) {
-                any |= process::close(q.pid).is_ok();
+            for pid in pids {
+                any |= process::close(pid).is_ok();
             }
-            seen.insert(lower);
             if any {
-                closed.push(ClosedApp { name: p.name.clone(), path });
+                closed.push(ClosedApp { name, path });
             }
         }
         if closed.is_empty() {
@@ -879,19 +884,14 @@ mod windows_tests {
     }
 
     #[test]
-    #[ignore = "beendet Programme – nur in CI"]
-    fn close_background_apply_and_revert() {
-        match close_background(&[], None) {
-            Ok((m, rev)) => {
-                println!("{m}");
-                if let Some(r) = rev {
-                    println!("zurück: {}", revert(&r).expect("revert"));
-                }
-            }
-            Err(e) => println!("nicht möglich: {e}"),
+    fn close_background_dry_run() {
+        // Nur auflisten, NICHTS beenden – auf dem CI-Rechner würde Beenden den Test-Runner treffen.
+        let list = background_candidates(&[], None);
+        for (name, path, pids) in &list {
+            println!("würde beenden: {name} ({} Prozess(e)) – {path}", pids.len());
         }
-        // Explorer & eigener Prozess müssen noch laufen
-        assert!(crate::win::process::list().iter().any(|p| p.pid == std::process::id()));
+        // Der eigene Prozess darf nie in der Liste stehen.
+        assert!(!list.iter().any(|(_, _, pids)| pids.contains(&std::process::id())));
     }
 
     #[test]

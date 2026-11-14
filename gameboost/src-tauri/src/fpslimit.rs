@@ -95,7 +95,7 @@ mod tests {
     fn gpu_bound_recommends_cap() {
         let a = advise(Some(142.0), Some(99.0), Some(50.0), Some(144));
         assert_eq!(a.situation, "gpu_bound");
-        assert!(a.recommended_cap.is_some_and(|c| c >= 130 && c < 142));
+        assert!(a.recommended_cap.is_some_and(|c| (130..142).contains(&c)));
     }
 
     #[test]
