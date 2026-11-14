@@ -119,3 +119,18 @@ pub fn fps_advice(app: AppHandle) -> crate::fpslimit::FpsAdvice {
     let hz = crate::pccheck::primary_monitor_hz();
     crate::fpslimit::advise(fps, gpu, cpu, hz)
 }
+
+#[tauri::command]
+pub fn start_smart_boost(app: AppHandle) -> Result<(), String> {
+    crate::smartboost::start(app)
+}
+
+#[tauri::command]
+pub fn cancel_smart_boost() {
+    crate::smartboost::cancel();
+}
+
+#[tauri::command]
+pub fn smart_boost_state() -> Option<crate::smartboost::SmartState> {
+    crate::smartboost::state()
+}

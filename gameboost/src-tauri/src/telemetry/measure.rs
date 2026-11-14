@@ -43,6 +43,7 @@ pub struct MeasurementProgress {
 pub struct Recording {
     pub label: String,
     started: Instant,
+    duration: Duration,
     pid: Option<u32>,
     game: Option<String>,
     frametimes: Vec<f32>,
@@ -54,7 +55,11 @@ pub struct Recording {
 
 impl Recording {
     pub fn new(label: String) -> Self {
-        Self { label, started: Instant::now(), pid: None, game: None, frametimes: Vec::new(), cpu: Vec::new(), gpu: Vec::new(), latency: Vec::new(), problem: None }
+        Self::with_duration(label, DURATION)
+    }
+
+    pub fn with_duration(label: String, duration: Duration) -> Self {
+        Self { label, started: Instant::now(), duration, pid: None, game: None, frametimes: Vec::new(), cpu: Vec::new(), gpu: Vec::new(), latency: Vec::new(), problem: None }
     }
 
     pub fn started(&self) -> Instant {
@@ -62,14 +67,14 @@ impl Recording {
     }
 
     pub fn done(&self) -> bool {
-        self.started.elapsed() >= DURATION
+        self.started.elapsed() >= self.duration
     }
 
     pub fn progress(&self) -> MeasurementProgress {
         MeasurementProgress {
             label: self.label.clone(),
-            elapsed_secs: self.started.elapsed().as_secs_f32().min(DURATION.as_secs_f32()),
-            duration_secs: DURATION.as_secs_f32(),
+            elapsed_secs: self.started.elapsed().as_secs_f32().min(self.duration.as_secs_f32()),
+            duration_secs: self.duration.as_secs_f32(),
             problem: self.problem.clone(),
         }
     }

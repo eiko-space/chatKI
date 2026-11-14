@@ -269,46 +269,10 @@ impl BoostEngine {
         let todo: Vec<&TweakInfo> = catalog().iter().filter(|t| enabled(t.id)).collect();
         for (n, t) in todo.iter().enumerate() {
             progress(n, todo.len(), t.title);
-            let outcome: tweaks::Applied = if t.needs_admin && !admin {
-                Err("SKIP:Benötigt Administratorrechte.".into())
-            } else {
-                match t.id {
-                    "power_plan" => tweaks::power_plan(),
-                    "game_priority" => match &game {
-                        Some(g) => tweaks::game_priority(g.pid, &g.exe),
-                        None => Err("SKIP:Kein laufendes Spiel erkannt.".into()),
-                    },
-                    "cpu_full" => tweaks::cpu_full(),
-                    "background_priority" => tweaks::background_priority(&mic),
-                    "close_apps" => {
-                        let apps: Vec<String> = settings.background_apps.iter().filter(|a| a.enabled).map(|a| a.exe.clone()).collect();
-                        tweaks::close_apps(&apps, &mic)
-                    }
-                    "game_mode" => tweaks::registry(GAME_MODE),
-                    "game_dvr" => tweaks::registry(GAME_DVR),
-                    "standby_list" => tweaks::purge_standby_list(),
-                    "device_power" => tweaks::device_power(),
-                    "mouse_accel" => tweaks::mouse_accel(),
-                    "no_interruptions" => tweaks::no_interruptions(),
-                    "pause_updates" => tweaks::stop_update_services(),
-                    "wlan_low_latency" => tweaks::wlan_low_latency(),
-                    _ => Err("SKIP:Unbekannter Tweak.".into()),
-                }
-            };
-            let result = match outcome {
-                Ok((message, Some(revert))) => {
-                    state.applied.push(AppliedTweak { id: t.id.into(), title: t.title.into(), revert });
-                    TweakResult { id: t.id.into(), title: t.title.into(), status: "applied".into(), message }
-                }
-                Ok((message, None)) => {
-                    let status = if t.one_shot { "applied" } else { "unchanged" };
-                    TweakResult { id: t.id.into(), title: t.title.into(), status: status.into(), message }
-                }
-                Err(e) => match e.strip_prefix("SKIP:") {
-                    Some(m) => TweakResult { id: t.id.into(), title: t.title.into(), status: "skipped".into(), message: m.into() },
-                    None => TweakResult { id: t.id.into(), title: t.title.into(), status: "failed".into(), message: e },
-                },
-            };
+            let (result, revert) = run_tweak(t, settings, game.as_ref(), admin, &mic);
+            if let Some(revert) = revert {
+                state.applied.push(AppliedTweak { id: t.id.into(), title: t.title.into(), revert });
+            }
             self.log("apply", t.title, &result.status, &result.message);
             state.results.push(result);
             // Nach jedem Schritt speichern: stürzt etwas ab, ist trotzdem alles rückgängig machbar.
@@ -319,6 +283,41 @@ impl BoostEngine {
         let status = BoostStatus { active: true, started_at: Some(state.started_at), game: state.game.clone(), results: state.results.clone() };
         *guard = Some(state);
         Ok(status)
+    }
+
+    /// Smart-Boost: einen einzelnen Tweak zusätzlich anwenden (startet bei Bedarf einen Boost).
+    pub fn apply_one(&self, id: &str, settings: &Settings, game: Option<&GameTarget>, admin: bool) -> TweakResult {
+        let Some(t) = catalog().iter().find(|t| t.id == id) else {
+            return TweakResult { id: id.into(), title: id.into(), status: "failed".into(), message: "Unbekannt".into() };
+        };
+        let mut guard = self.state.lock().unwrap();
+        let state = guard.get_or_insert_with(|| BoostState { started_at: unix_now(), game: game.map(|g| g.name.clone()), applied: Vec::new(), results: Vec::new() });
+        let mic = protect::microphone_in_use();
+        let (result, revert) = run_tweak(t, settings, game, admin, &mic);
+        if let Some(revert) = revert {
+            state.applied.push(AppliedTweak { id: t.id.into(), title: t.title.into(), revert });
+        }
+        state.results.retain(|r| r.id != result.id);
+        state.results.push(result.clone());
+        self.log("smart", t.title, &result.status, &result.message);
+        self.persist(state);
+        result
+    }
+
+    /// Smart-Boost: einen einzelnen Tweak wieder zurücknehmen.
+    pub fn revert_one(&self, id: &str) -> Result<String, String> {
+        let mut guard = self.state.lock().unwrap();
+        let Some(state) = guard.as_mut() else { return Ok("Nichts aktiv.".into()) };
+        let Some(pos) = state.applied.iter().position(|a| a.id == id) else { return Ok("Nichts zu tun.".into()) };
+        let a = state.applied.remove(pos);
+        let res = tweaks::revert(&a.revert);
+        if let Some(r) = state.results.iter_mut().find(|r| r.id == id) {
+            r.status = "reverted".into();
+            r.message = "Vom Smart-Boost wieder entfernt (hat nicht geholfen).".into();
+        }
+        self.log("smart", &a.title, if res.is_ok() { "reverted" } else { "failed" }, res.as_deref().unwrap_or_else(|e| e));
+        self.persist(state);
+        res
     }
 
     pub fn revert(&self, progress: &dyn Fn(usize, usize, &str)) -> Vec<TweakResult> {
@@ -349,6 +348,45 @@ impl BoostEngine {
         progress(total, total, "Fertig");
         self.log("boost", "Boost beendet", "info", "");
         results
+    }
+}
+
+/// Wendet einen einzelnen Tweak an. Liefert das Ergebnis und – falls etwas geändert wurde – die Rückgängig-Daten.
+fn run_tweak(t: &TweakInfo, settings: &Settings, game: Option<&GameTarget>, admin: bool, mic: &[String]) -> (TweakResult, Option<Revert>) {
+    let outcome: tweaks::Applied = if t.needs_admin && !admin {
+        Err("SKIP:Benötigt Administratorrechte.".into())
+    } else {
+        match t.id {
+            "power_plan" => tweaks::power_plan(),
+            "game_priority" => match game {
+                Some(g) => tweaks::game_priority(g.pid, &g.exe),
+                None => Err("SKIP:Kein laufendes Spiel erkannt.".into()),
+            },
+            "cpu_full" => tweaks::cpu_full(),
+            "background_priority" => tweaks::background_priority(mic),
+            "close_apps" => {
+                let apps: Vec<String> = settings.background_apps.iter().filter(|a| a.enabled).map(|a| a.exe.clone()).collect();
+                tweaks::close_apps(&apps, mic)
+            }
+            "game_mode" => tweaks::registry(GAME_MODE),
+            "game_dvr" => tweaks::registry(GAME_DVR),
+            "standby_list" => tweaks::purge_standby_list(),
+            "device_power" => tweaks::device_power(),
+            "mouse_accel" => tweaks::mouse_accel(),
+            "no_interruptions" => tweaks::no_interruptions(),
+            "pause_updates" => tweaks::stop_update_services(),
+            "wlan_low_latency" => tweaks::wlan_low_latency(),
+            _ => Err("SKIP:Unbekannter Tweak.".into()),
+        }
+    };
+    let res = |status: &str, message: String| TweakResult { id: t.id.into(), title: t.title.into(), status: status.into(), message };
+    match outcome {
+        Ok((message, Some(revert))) => (res("applied", message), Some(revert)),
+        Ok((message, None)) => (res(if t.one_shot { "applied" } else { "unchanged" }, message), None),
+        Err(e) => match e.strip_prefix("SKIP:") {
+            Some(m) => (res("skipped", m.into()), None),
+            None => (res("failed", e), None),
+        },
     }
 }
 

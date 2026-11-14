@@ -94,6 +94,8 @@ pub struct Hub {
     latest: Mutex<Option<Snapshot>>,
     baseline: Mutex<Option<(Instant, Option<FpsStats>, PingStats)>>,
     pub detective: Mutex<detective::Detective>,
+    /// Ergebnisse abgeschlossener Messungen (für den Smart-Boost, der darauf wartet)
+    results: Mutex<std::collections::HashMap<String, Result<measure::Measurement, String>>>,
 }
 
 impl Hub {
@@ -111,6 +113,7 @@ impl Hub {
             latest: Mutex::new(None),
             baseline: Mutex::new(None),
             detective: Mutex::new(detective::Detective::new()),
+            results: Mutex::new(Default::default()),
         })
     }
 
@@ -227,6 +230,7 @@ impl Hub {
     }
 
     pub fn clear_baseline(&self) {
+        // (auch vom Smart-Boost genutzt)
         *self.baseline.lock().unwrap() = None;
     }
 
@@ -242,6 +246,22 @@ impl Hub {
         }
         *rec = Some(Recording::new(label));
         Ok(())
+    }
+
+    /// Messung mit eigener Dauer starten (Smart-Boost).
+    pub fn start_measurement_for(&self, label: String, secs: u64) -> Result<(), String> {
+        let mut rec = self.recording.lock().unwrap();
+        if rec.is_some() {
+            return Err("Es läuft bereits eine Messung.".into());
+        }
+        self.results.lock().unwrap().remove(&label);
+        *rec = Some(Recording::with_duration(label, Duration::from_secs(secs)));
+        Ok(())
+    }
+
+    /// Ergebnis einer Messung abholen (sobald fertig).
+    pub fn take_result(&self, label: &str) -> Option<Result<measure::Measurement, String>> {
+        self.results.lock().unwrap().remove(label)
     }
 
     pub fn cancel_measurement(&self) {
@@ -265,10 +285,12 @@ impl Hub {
         }
         let rec = guard.take()?;
         let ping = self.internet.lock().unwrap().stats_since(Some(rec.started()));
-        Some(match rec.problem {
+        let result = match rec.problem.clone() {
             Some(p) => Err(p),
             None => Ok(rec.finish(&ping)),
-        })
+        };
+        self.results.lock().unwrap().insert(rec.label.clone(), result.clone());
+        Some(result)
     }
 
     pub fn start_capture(&self) -> Result<(), String> {

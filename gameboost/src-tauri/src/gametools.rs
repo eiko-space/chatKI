@@ -1,5 +1,6 @@
 //! Spiele-Werkzeuge: installierte Spiele finden, Overlays erkennen, Shader-Cache leeren.
 
+#[cfg(windows)]
 use crate::storage_info::is_hdd;
 use serde::Serialize;
 use std::path::{Path, PathBuf};

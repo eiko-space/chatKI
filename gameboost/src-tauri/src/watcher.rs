@@ -58,7 +58,12 @@ pub fn start<R: Runtime>(app: AppHandle<R>) {
                     stopped_by_user = game.as_ref().map(|g| g.pid);
                 }
                 was_active = active;
-                if settings.auto_boost {
+                let smart = crate::smartboost::RUNNING.load(std::sync::atomic::Ordering::SeqCst);
+                if smart {
+                    // Während des Smart-Boosts nichts automatisch starten oder beenden
+                    was_active = false;
+                    stopped_by_user = game.as_ref().map(|g| g.pid);
+                } else if settings.auto_boost {
                     match (&game, active) {
                         (Some(g), false) if stopped_by_user != Some(g.pid) => {
                             let name = g.name.clone();

@@ -14,6 +14,7 @@ mod overlay;
 mod pccheck;
 mod sessions;
 mod settings;
+mod smartboost;
 mod storage;
 mod storage_info;
 mod telemetry;
@@ -40,6 +41,9 @@ pub(crate) fn boost_now<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<BoostSt
     if is_locked() {
         return Err("Bitte zuerst anmelden.".into());
     }
+    if smartboost::RUNNING.load(std::sync::atomic::Ordering::SeqCst) {
+        return Err("Der Smart-Boost läuft gerade – bitte warten oder abbrechen.".into());
+    }
     let settings = app.state::<SettingsStore>().get();
     let game = boost::find_running_game(&settings);
     // Vergleichsbasis VOR dem Boost festhalten
@@ -56,6 +60,11 @@ pub(crate) fn boost_now<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<BoostSt
 
 /// Boost beenden und alles zurücksetzen.
 pub(crate) fn revert_now<R: tauri::Runtime>(app: &AppHandle<R>) -> Vec<TweakResult> {
+    if smartboost::RUNNING.load(std::sync::atomic::Ordering::SeqCst) {
+        // Während des Smart-Boosts heißt „Boost beenden“: Test abbrechen (setzt danach alles zurück).
+        smartboost::cancel();
+        return Vec::new();
+    }
     let engine = app.state::<BoostEngine>();
     let emit = |done: usize, total: usize, step: &str| {
         let _ = app.emit("boost-progress", serde_json::json!({ "mode": "revert", "done": done, "total": total, "step": step }));
@@ -175,6 +184,9 @@ pub fn run() {
             commands::tools::apply_game_config,
             commands::tools::restore_game_config,
             commands::tools::fps_advice,
+            commands::tools::start_smart_boost,
+            commands::tools::cancel_smart_boost,
+            commands::tools::smart_boost_state,
             commands::tools::run_pc_check,
             commands::tools::run_pc_fix,
         ])
