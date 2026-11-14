@@ -59,6 +59,7 @@ export interface Snapshot {
     downloadMbps: number | null;
     uploadMbps: number | null;
   };
+  measurement: { label: string; elapsedSecs: number; durationSecs: number; problem: string | null } | null;
 }
 
 /** Wie viele Frametimes der Graph maximal vorhält. */

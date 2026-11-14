@@ -7,6 +7,7 @@ import { Toggle } from "../components/ui/Toggle";
 import { Details } from "../components/ui/Details";
 import { ResultList } from "../components/ui/ResultList";
 import { BoostControl } from "../components/BoostControl";
+import { MeasureWizard } from "../components/MeasureWizard";
 import { useAppState } from "../lib/app-state";
 import { api, type LogEntry, type ProtectedApp, type TweakInfo } from "../lib/api";
 import { isTauri, type AppInfo } from "../lib/tauri";
@@ -55,9 +56,13 @@ export default function Boost({ info }: { info: AppInfo | null }) {
             <p className="text-sm text-faint">Noch kein Boost aktiv. Nach dem Start siehst du hier für jeden Tweak, was genau passiert ist – auch was übersprungen wurde.</p>
           )}
           <p className="mt-4 text-xs text-faint">
-            Ob ein Tweak auf deinem PC wirklich etwas bringt, misst die Vorher-/Nachher-Messung (Phase 4) – ehrlich, auch wenn es nichts bringt.
+            Ob der Boost auf deinem PC wirklich etwas bringt, zeigt die Vorher-/Nachher-Messung unten – ehrlich, auch wenn es nichts bringt.
           </p>
         </Card>
+
+        <div className="col-span-12">
+          <MeasureWizard />
+        </div>
 
         {(["fps", "network"] as const).map((cat) => (
           <Card key={cat} className="col-span-12 lg:col-span-6" title={cat === "fps" ? "FPS & Input Delay" : "Netzwerk"}>

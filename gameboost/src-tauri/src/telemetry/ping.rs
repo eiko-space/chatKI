@@ -54,19 +54,25 @@ impl PingStore {
     }
 
     pub fn stats(&self) -> PingStats {
-        let rtts: Vec<f32> = self.samples.iter().filter_map(|(_, r)| *r).collect();
-        let total = self.samples.len();
+        self.stats_since(None)
+    }
+
+    /// Statistik nur über Pings ab `since` (für Messungen mit festem Start).
+    pub fn stats_since(&self, since: Option<Instant>) -> PingStats {
+        let window: Vec<&(Instant, Option<f32>)> = self.samples.iter().filter(|(t, _)| since.is_none_or(|s| *t >= s)).collect();
+        let rtts: Vec<f32> = window.iter().filter_map(|(_, r)| *r).collect();
+        let total = window.len();
         let mut s = PingStats {
             label: self.label.clone(),
             target: self.target.map(|t| t.to_string()),
             samples: total as u32,
-            window_secs: self.samples.front().map_or(0.0, |(t, _)| t.elapsed().as_secs_f32()),
+            window_secs: window.first().map_or(0.0, |(t, _)| t.elapsed().as_secs_f32()),
             ..Default::default()
         };
         if total == 0 {
             return s;
         }
-        s.last_ms = self.samples.back().and_then(|(_, r)| *r);
+        s.last_ms = window.last().and_then(|(_, r)| *r);
         s.loss_percent = Some(100.0 * (total - rtts.len()) as f32 / total as f32);
         if rtts.is_empty() {
             return s;

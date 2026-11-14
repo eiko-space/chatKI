@@ -97,3 +97,37 @@ export const api = {
   setFullscreenOptimizations: (exePath: string, disable: boolean) =>
     invoke<void>("set_fullscreen_optimizations", { exePath, disable }),
 };
+
+export interface Measurement {
+  game: string | null;
+  durationSecs: number;
+  frames: number;
+  fpsAvg: number | null;
+  low1: number | null;
+  low01: number | null;
+  frametimeStdDevMs: number | null;
+  stuttersPerMin: number | null;
+  pingAvgMs: number | null;
+  jitterMs: number | null;
+  lossPercent: number | null;
+  spikesPerMin: number | null;
+  cpuAvg: number | null;
+  gpuAvg: number | null;
+}
+
+export interface Session {
+  id: string;
+  createdAt: number;
+  game: string | null;
+  before: Measurement;
+  after: Measurement;
+  tweaks: string[];
+}
+
+export const measureApi = {
+  start: (label: string) => invoke<void>("start_measurement", { label }),
+  cancel: () => invoke<void>("cancel_measurement"),
+  listSessions: () => invoke<Session[]>("list_sessions"),
+  saveSession: (session: Session) => invoke<void>("save_session", { session }),
+  deleteSession: (id: string) => invoke<void>("delete_session", { id }),
+};

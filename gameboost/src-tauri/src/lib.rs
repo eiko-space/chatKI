@@ -1,7 +1,10 @@
+#![cfg_attr(not(windows), allow(dead_code))]
+
 mod boost;
 mod commands;
 mod elevation;
 mod games;
+mod sessions;
 mod settings;
 mod storage;
 mod telemetry;
@@ -43,6 +46,7 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             app.manage(SettingsStore::load(&data_dir));
             app.manage(BoostEngine::load(&data_dir));
+            app.manage(sessions::SessionStore::load(&data_dir));
             tray::create(app.handle())?;
 
             let presentmon = telemetry::presentmon::locate(app.path().resource_dir().ok());
@@ -69,6 +73,11 @@ pub fn run() {
             commands::system::restart_as_admin,
             commands::telemetry::start_fps_capture,
             commands::telemetry::stop_fps_capture,
+            commands::telemetry::start_measurement,
+            commands::telemetry::cancel_measurement,
+            commands::telemetry::list_sessions,
+            commands::telemetry::save_session,
+            commands::telemetry::delete_session,
             commands::boost::get_boost_catalog,
             commands::boost::get_boost_status,
             commands::boost::apply_boost,

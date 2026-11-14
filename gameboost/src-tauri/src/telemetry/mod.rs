@@ -2,12 +2,14 @@
 
 pub mod frames;
 pub mod gpu;
+pub mod measure;
 pub mod ping;
 pub mod presentmon;
 pub mod system;
 
 use frames::{FpsStats, FrameStore};
 use gpu::{GpuSampler, GpuStats};
+use measure::{MeasurementProgress, Recording};
 use ping::{PingStats, PingStore};
 use serde::Serialize;
 use std::path::PathBuf;
@@ -64,6 +66,8 @@ pub struct Snapshot {
     /// Windows stellt die CPU-Temperatur ohne Zusatztreiber nicht bereit → bewusst immer `null`.
     pub cpu_temperature: Option<f32>,
     pub network: NetworkStats,
+    /// Laufende 60-s-Messung (Vorher/Nachher)
+    pub measurement: Option<MeasurementProgress>,
 }
 
 pub struct Hub {
@@ -74,6 +78,8 @@ pub struct Hub {
     internet: Arc<Mutex<PingStore>>,
     router: Arc<Mutex<PingStore>>,
     presentmon: Option<PathBuf>,
+    recording: Mutex<Option<Recording>>,
+    latest: Mutex<Option<Snapshot>>,
 }
 
 impl Hub {
@@ -87,6 +93,8 @@ impl Hub {
             internet: Arc::new(Mutex::new(PingStore::new("Internet (Cloudflare)"))),
             router: Arc::new(Mutex::new(PingStore::new("Router"))),
             presentmon,
+            recording: Mutex::new(None),
+            latest: Mutex::new(None),
         })
     }
 
@@ -112,6 +120,10 @@ impl Hub {
                         link = sampler.link();
                     }
                     let snapshot = hub.snapshot(sys.clone(), gpu_stats.clone(), link.clone());
+                    if let Some(result) = hub.feed_recording(&snapshot) {
+                        let _ = app.emit("measurement-finished", result);
+                    }
+                    *hub.latest.lock().unwrap() = Some(snapshot.clone());
                     let _ = app.emit("telemetry", snapshot);
                     tick += 1;
                     std::thread::sleep(TICK.saturating_sub(started.elapsed()));
@@ -138,7 +150,48 @@ impl Hub {
                 router: self.router.lock().unwrap().stats(),
                 link,
             },
+            measurement: self.recording.lock().unwrap().as_ref().map(|r| r.progress()),
         }
+    }
+
+    /// Letzter Schnappschuss (z. B. für Overlay, Benachrichtigungen, Auto-Boost).
+    pub fn latest(&self) -> Option<Snapshot> {
+        self.latest.lock().unwrap().clone()
+    }
+
+    pub fn start_measurement(&self, label: String) -> Result<(), String> {
+        let mut rec = self.recording.lock().unwrap();
+        if rec.is_some() {
+            return Err("Es läuft bereits eine Messung.".into());
+        }
+        *rec = Some(Recording::new(label));
+        Ok(())
+    }
+
+    pub fn cancel_measurement(&self) {
+        *self.recording.lock().unwrap() = None;
+    }
+
+    /// Gibt neue Daten an eine laufende Messung; liefert das Ergebnis, wenn sie fertig ist.
+    fn feed_recording(&self, snap: &Snapshot) -> Option<Result<measure::Measurement, String>> {
+        let mut guard = self.recording.lock().unwrap();
+        let rec = guard.as_mut()?;
+        rec.add(
+            snap.fps.as_ref().map(|f| f.pid),
+            snap.fps.as_ref().map(|f| f.game.map(str::to_string).unwrap_or_else(|| f.app.clone())),
+            &snap.frametimes,
+            snap.system.cpu_usage,
+            snap.gpu.usage,
+        );
+        if !rec.done() {
+            return None;
+        }
+        let rec = guard.take()?;
+        let ping = self.internet.lock().unwrap().stats_since(Some(rec.started()));
+        Some(match rec.problem {
+            Some(p) => Err(p),
+            None => Ok(rec.finish(&ping)),
+        })
     }
 
     pub fn start_capture(&self) -> Result<(), String> {
