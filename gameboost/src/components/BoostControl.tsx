@@ -45,17 +45,26 @@ export function BoostControl({ info }: { info: AppInfo | null }) {
 
   return (
     <div className="flex flex-col items-center">
-      <BoostButton active={active} disabled={busy || !isTauri()} onClick={onClick} />
+      <BoostButton active={active} working={busy || working} disabled={!isTauri()} onClick={onClick} />
       <p className="mt-5 max-w-xs text-center text-sm text-muted">
         {!isTauri()
           ? "Nur in der App verfügbar."
           : busy
             ? active ? "Setze alles zurück …" : "Wende Optimierungen an …"
             : active
-              ? `Boost aktiv${boost?.game ? ` für ${boost.game}` : ""}. Klicke erneut, um alles zurückzusetzen.`
-              : "Ein Klick optimiert Windows fürs Spielen. Alles lässt sich vollständig rückgängig machen."}
+              ? `Aktiv${boost?.game ? ` für ${boost.game}` : ""} · erneut klicken zum Zurücksetzen`
+              : "Ein Klick – alles lässt sich rückgängig machen."}
       </p>
       {error && <p className="mt-2 max-w-xs text-center text-xs text-bad">{error}</p>}
+      {active && !busy && boost && (
+        <div className="mt-4 flex flex-wrap justify-center gap-1.5">
+          {boost.results.filter((r) => r.status === "applied").map((r, i) => (
+            <span key={r.id} className="rounded-full bg-accent-dim px-2.5 py-1 text-[11px] font-medium text-accent animate-pop-in" style={{ animationDelay: `${150 + i * 90}ms` }}>
+              ✓ {r.title}
+            </span>
+          ))}
+        </div>
+      )}
       {restoreMsg && <p className="mt-2 max-w-xs text-center text-xs text-muted">{restoreMsg}</p>}
 
       <Dialog

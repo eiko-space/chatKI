@@ -23,6 +23,9 @@ mod stub {
     pub fn stop_update_services() -> Applied { Err(NA.into()) }
     pub fn wlan_low_latency() -> Applied { Err(NA.into()) }
     pub fn purge_standby_list() -> Applied { Err(NA.into()) }
+    pub fn device_power() -> Applied { Err(NA.into()) }
+    pub fn mouse_accel() -> Applied { Err(NA.into()) }
+    pub fn no_interruptions() -> Applied { Err(NA.into()) }
     pub fn revert(_r: &Revert) -> Result<String, String> { Err(NA.into()) }
     pub fn create_restore_point(_d: &str) -> Result<String, String> { Err(NA.into()) }
     pub fn set_fullscreen_optimizations(_p: &str, _d: bool) -> Result<(), String> { Err(NA.into()) }
@@ -412,6 +415,124 @@ mod imp {
         Ok((msg, None))
     }
 
+    // ------------------------------------------------------------------ Geräte-Energiesparen
+
+    /// (Untergruppe, Einstellung, Name) – Zielwert ist jeweils 0 (= aus / maximale Leistung).
+    const DEVICE_POWER: &[(u128, u128, &str)] = &[
+        (0x2a737441_1930_4402_8d77_b2bebba308a3, 0x48e6b7a6_50f5_4782_a5d4_53bb8f07e226, "USB-Energiesparen"),
+        (0x501a4d13_42af_4429_9fd1_a8218c268e20, 0xee12f906_d277_404b_b6da_e5fa1a576df5, "PCIe-Energiesparen"),
+        (0x19cbb8fa_5279_450e_9fac_8a3d5fedd0c1, 0x12bbebe6_58d6_4636_95bb_3217ef867c1a, "WLAN-Energiesparen"),
+    ];
+
+    fn power_value(scheme: &GUID, sub: &GUID, set: &GUID) -> Option<(u32, u32)> {
+        use windows_sys::Win32::System::Power::{PowerReadACValueIndex, PowerReadDCValueIndex};
+        let (mut ac, mut dc) = (0u32, 0u32);
+        // SAFETY: Zeiger auf gültige GUIDs und Ausgabevariablen.
+        unsafe {
+            (PowerReadACValueIndex(std::ptr::null_mut(), scheme, sub, set, &mut ac) == 0
+                && PowerReadDCValueIndex(std::ptr::null_mut(), scheme, sub, set, &mut dc) == 0)
+                .then_some((ac, dc))
+        }
+    }
+
+    fn write_power_value(scheme: &GUID, sub: &GUID, set: &GUID, ac: u32, dc: u32) -> Result<(), String> {
+        use windows_sys::Win32::System::Power::{PowerWriteACValueIndex, PowerWriteDCValueIndex};
+        // SAFETY: wie oben.
+        let r = unsafe {
+            PowerWriteACValueIndex(std::ptr::null_mut(), scheme, sub, set, ac) | PowerWriteDCValueIndex(std::ptr::null_mut(), scheme, sub, set, dc)
+        };
+        if r == 0 { Ok(()) } else { Err(format!("Windows-Fehler {r}")) }
+    }
+
+    pub fn device_power() -> Applied {
+        let scheme = active_scheme().ok_or("Aktueller Energieplan konnte nicht gelesen werden.")?;
+        let mut saved = Vec::new();
+        let mut changed = Vec::new();
+        for (sub, set, name) in DEVICE_POWER {
+            let (sub, set) = (GUID::from_u128(*sub), GUID::from_u128(*set));
+            let Some((ac, dc)) = power_value(&scheme, &sub, &set) else { continue }; // Gerät/Einstellung nicht vorhanden
+            if ac == 0 && dc == 0 {
+                continue;
+            }
+            write_power_value(&scheme, &sub, &set, 0, 0)?;
+            saved.push((guid_str(&sub), guid_str(&set), ac, dc));
+            changed.push(*name);
+        }
+        if saved.is_empty() {
+            return Ok(("War bereits aus – nichts geändert.".into(), None));
+        }
+        set_scheme(&scheme)?; // Änderungen sofort wirksam machen
+        Ok((format!("Ausgeschaltet: {}.", changed.join(", ")), Some(Revert::DevicePower { scheme: guid_str(&scheme), values: saved })))
+    }
+
+    // ------------------------------------------------------------------ Maus & Störungen
+
+    fn spi_get<T>(action: u32, value: &mut T, size: u32) -> bool {
+        use windows_sys::Win32::UI::WindowsAndMessaging::SystemParametersInfoW;
+        // SAFETY: Puffer passt zur jeweiligen Aktion.
+        unsafe { SystemParametersInfoW(action, size, (value as *mut T).cast(), 0) != 0 }
+    }
+
+    fn spi_set<T>(action: u32, value: &mut T, size: u32, by_value: bool) -> Result<(), String> {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{SystemParametersInfoW, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE};
+        // SAFETY: wie oben.
+        let ok = unsafe { SystemParametersInfoW(action, if by_value { 0 } else { size }, (value as *mut T).cast(), SPIF_UPDATEINIFILE | SPIF_SENDCHANGE) != 0 };
+        if ok { Ok(()) } else { Err(std::io::Error::last_os_error().to_string()) }
+    }
+
+    pub fn mouse_accel() -> Applied {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{SPI_GETMOUSE, SPI_SETMOUSE};
+        let mut prev = [0i32; 3];
+        if !spi_get(SPI_GETMOUSE, &mut prev, 0) {
+            return Err("Mauseinstellungen nicht lesbar.".into());
+        }
+        if prev[2] == 0 {
+            return Ok(("Mausbeschleunigung war bereits aus.".into(), None));
+        }
+        let mut off = [0i32; 3];
+        spi_set(SPI_SETMOUSE, &mut off, 0, true)?;
+        Ok(("Mausbeschleunigung ausgeschaltet.".into(), Some(Revert::Mouse { previous: prev })))
+    }
+
+    #[repr(C)]
+    struct StickyKeys {
+        cb_size: u32,
+        flags: u32,
+    }
+    const SKF_HOTKEYACTIVE: u32 = 0x4;
+
+    fn sticky_keys() -> Option<StickyKeys> {
+        use windows_sys::Win32::UI::WindowsAndMessaging::SPI_GETSTICKYKEYS;
+        let mut sk = StickyKeys { cb_size: 8, flags: 0 };
+        spi_get(SPI_GETSTICKYKEYS, &mut sk, 8).then_some(sk)
+    }
+
+    fn set_sticky_flags(flags: u32) -> Result<(), String> {
+        use windows_sys::Win32::UI::WindowsAndMessaging::SPI_SETSTICKYKEYS;
+        let mut sk = StickyKeys { cb_size: 8, flags };
+        spi_set(SPI_SETSTICKYKEYS, &mut sk, 8, false)
+    }
+
+    pub fn no_interruptions() -> Applied {
+        let mut parts = Vec::new();
+        let mut done = Vec::new();
+        if let Ok((_, Some(r))) = registry(&[(r"Software\Microsoft\Windows\CurrentVersion\PushNotifications", "ToastEnabled", 0)]) {
+            parts.push(r);
+            done.push("Benachrichtigungen aus");
+        }
+        if let Some(sk) = sticky_keys() {
+            if sk.flags & SKF_HOTKEYACTIVE != 0 {
+                set_sticky_flags(sk.flags & !SKF_HOTKEYACTIVE)?;
+                parts.push(Revert::StickyKeys { flags: sk.flags });
+                done.push("Einrastfunktion-Kürzel aus");
+            }
+        }
+        if parts.is_empty() {
+            return Ok(("War bereits so eingestellt – nichts geändert.".into(), None));
+        }
+        Ok((format!("{}.", done.join(", ")), Some(Revert::Multi { parts })))
+    }
+
     // ------------------------------------------------------------------ Rückgängig
 
     pub fn revert(r: &Revert) -> Result<String, String> {
@@ -467,6 +588,36 @@ mod imp {
                     }
                 }
                 Ok("WLAN-Einstellungen wiederhergestellt.".into())
+            }
+            Revert::Mouse { previous } => {
+                use windows_sys::Win32::UI::WindowsAndMessaging::SPI_SETMOUSE;
+                let mut p = *previous;
+                spi_set(SPI_SETMOUSE, &mut p, 0, true)?;
+                Ok("Mausbeschleunigung wiederhergestellt.".into())
+            }
+            Revert::DevicePower { scheme, values } => {
+                let scheme = parse_guid(scheme).ok_or("Ungültige Energieplan-ID")?;
+                for (sub, set, ac, dc) in values {
+                    if let (Some(sub), Some(set)) = (parse_guid(sub), parse_guid(set)) {
+                        write_power_value(&scheme, &sub, &set, *ac, *dc)?;
+                    }
+                }
+                // Nur neu aktivieren, wenn der Plan noch aktiv ist (sonst würde er wieder eingeschaltet).
+                if active_scheme().is_some_and(|a| guid_str(&a) == guid_str(&scheme)) {
+                    set_scheme(&scheme)?;
+                }
+                Ok("Energiespar-Einstellungen wiederhergestellt.".into())
+            }
+            Revert::StickyKeys { flags } => {
+                set_sticky_flags(*flags)?;
+                Ok("Einrastfunktion wiederhergestellt.".into())
+            }
+            Revert::Multi { parts } => {
+                let mut msgs = Vec::new();
+                for p in parts.iter().rev() {
+                    msgs.push(revert(p)?);
+                }
+                Ok(msgs.join(" "))
             }
         }
     }
@@ -546,6 +697,22 @@ mod windows_tests {
         match purge_standby_list() {
             Ok((m, _)) => println!("{m}"),
             Err(e) => println!("nicht möglich (erwartbar ohne Admin): {e}"),
+        }
+    }
+
+    #[test]
+    #[ignore = "verändert Systemeinstellungen – nur in CI"]
+    fn new_tweaks_apply_and_revert() {
+        for (name, f) in [("device_power", device_power as fn() -> Applied), ("mouse_accel", mouse_accel), ("no_interruptions", no_interruptions)] {
+            match f() {
+                Ok((m, rev)) => {
+                    println!("{name}: {m}");
+                    if let Some(r) = rev {
+                        println!("  zurück: {}", revert(&r).expect("revert"));
+                    }
+                }
+                Err(e) => println!("{name}: nicht möglich: {e}"),
+            }
         }
     }
 

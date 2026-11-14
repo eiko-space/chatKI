@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn constant_frametimes() {
-        let s = summarize(&vec![10.0; 1000]).unwrap();
+        let s = summarize(&[10.0; 1000]).unwrap();
         assert!((s.average_fps - 100.0).abs() < 0.01);
         assert!((s.low1.unwrap() - 100.0).abs() < 0.01);
         assert!((s.low01.unwrap() - 100.0).abs() < 0.01);
@@ -214,7 +214,7 @@ mod tests {
 
     #[test]
     fn not_enough_frames_for_lows() {
-        let s = summarize(&vec![16.6; 50]).unwrap();
+        let s = summarize(&[16.6; 50]).unwrap();
         assert_eq!(s.low1, None);
         assert_eq!(s.low01, None);
     }

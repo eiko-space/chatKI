@@ -21,6 +21,7 @@ export const METRICS: MetricDef[] = [
   { key: "fpsAvg", label: "Ø FPS", unit: "FPS", digits: 0, higherIsBetter: true, minRelative: 0.03, minAbsolute: 1, hint: "Durchschnittliche Bildrate" },
   { key: "frametimeStdDevMs", label: "Frametime-Schwankung", unit: "ms", digits: 2, higherIsBetter: false, minRelative: 0.1, minAbsolute: 0.1, hint: "Je kleiner, desto gleichmäßiger" },
   { key: "stuttersPerMin", label: "Ruckler", unit: "/min", digits: 1, higherIsBetter: false, minRelative: 0.15, minAbsolute: 1, hint: "Bilder, die doppelt so lange dauern wie üblich" },
+  { key: "inputLatencyMs", label: "Input-Delay", unit: "ms", digits: 1, higherIsBetter: false, minRelative: 0.05, minAbsolute: 0.5, hint: "Maus/Tastatur bis zum Bild" },
   { key: "pingAvgMs", label: "Ø Ping", unit: "ms", digits: 0, higherIsBetter: false, minRelative: 0.05, minAbsolute: 2, hint: "Zu 1.1.1.1 (Referenz)" },
   { key: "jitterMs", label: "Jitter", unit: "ms", digits: 1, higherIsBetter: false, minRelative: 0.15, minAbsolute: 0.5, hint: "Schwankung des Pings" },
   { key: "spikesPerMin", label: "Ping-Spikes", unit: "/min", digits: 1, higherIsBetter: false, minRelative: 0.2, minAbsolute: 1, hint: "Plötzliche Ping-Spitzen" },
@@ -37,8 +38,8 @@ export interface Compared {
 
 export function compare(before: Measurement, after: Measurement): Compared[] {
   return METRICS.map((def) => {
-    const b = before[def.key] as number | null;
-    const a = after[def.key] as number | null;
+    const b = (before[def.key] ?? null) as number | null;
+    const a = (after[def.key] ?? null) as number | null;
     if (b == null || a == null) return { def, before: b, after: a, changePercent: null, verdict: "unknown" as Verdict };
     const diff = a - b;
     const rel = b !== 0 ? diff / Math.abs(b) : diff === 0 ? 0 : Infinity;

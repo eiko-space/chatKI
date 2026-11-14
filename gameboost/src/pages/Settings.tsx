@@ -89,10 +89,7 @@ export default function SettingsPage({ info }: { info: AppInfo | null }) {
               ))}
             </ul>
           )}
-          <p className="mt-4 text-xs text-faint">
-            Voreingestellt sind Cloud-Sync-Programme (OneDrive, Dropbox …), weil sie im Spiel Festplatte und Internet belasten.
-            Programme aus der Schutzliste (Virenschutz, Discord, Launcher …) werden nie beendet, selbst wenn sie hier stehen.
-          </p>
+          <p className="mt-4 text-xs text-faint">Virenschutz, Discord, Launcher usw. werden nie beendet – auch wenn sie hier stehen.</p>
         </Card>
 
         <Card className="col-span-12 lg:col-span-5" title="App-Verhalten">
@@ -128,9 +125,7 @@ export default function SettingsPage({ info }: { info: AppInfo | null }) {
               />
             </Row>
           </div>
-          <p className="mt-5 text-sm text-muted">
-            Beim Schließen des Fensters läuft GameBoost im System-Tray weiter. Über das Tray-Symbol öffnest oder beendest du die App.
-          </p>
+
           {info && (
             <p className="mt-3 text-xs text-faint">
               Version {info.version} · {info.os} {info.osVersion} · Admin-Rechte: {info.isElevated ? "ja" : "nein"}
@@ -179,10 +174,7 @@ export default function SettingsPage({ info }: { info: AppInfo | null }) {
               <Row label="FPS anzeigen"><Toggle label="FPS anzeigen" checked={ov?.showFps ?? true} disabled={!settings} onChange={(v) => setOverlay({ showFps: v })} /></Row>
               <Row label="Ping anzeigen"><Toggle label="Ping anzeigen" checked={ov?.showPing ?? true} disabled={!settings} onChange={(v) => setOverlay({ showPing: v })} /></Row>
               <Row label="GPU-Temperatur anzeigen"><Toggle label="GPU-Temperatur anzeigen" checked={ov?.showTemp ?? true} disabled={!settings} onChange={(v) => setOverlay({ showTemp: v })} /></Row>
-              <p className="text-xs text-faint">
-                Das Overlay ist ein eigenes, durchsichtiges Fenster – es greift nicht ins Spiel ein (Anti-Cheat-sicher).
-                Darum erscheint es nur, wenn das Spiel im Modus „Randloses Fenster“ bzw. „Vollbild (Fenster)“ läuft, nicht im exklusiven Vollbild.
-              </p>
+              <p className="text-xs text-faint">Anti-Cheat-sicher. Im Spiel „Randloses Fenster“ wählen, damit es sichtbar ist.</p>
               {overlayMsg && <p className="text-xs text-bad">{overlayMsg}</p>}
             </div>
           </div>

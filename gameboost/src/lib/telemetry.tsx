@@ -60,6 +60,7 @@ export interface Snapshot {
     uploadMbps: number | null;
   };
   measurement: { label: string; elapsedSecs: number; durationSecs: number; problem: string | null } | null;
+  boostBaseline: { secondsSince: number; fps: FpsStats | null; ping: PingStats } | null;
 }
 
 /** Wie viele Frametimes der Graph maximal vorhält. */

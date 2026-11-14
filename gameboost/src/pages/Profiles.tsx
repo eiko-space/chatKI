@@ -5,7 +5,6 @@ import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { Toggle } from "../components/ui/Toggle";
-import { Details } from "../components/ui/Details";
 import { useAppState } from "../lib/app-state";
 import { api, type GameProfile } from "../lib/api";
 import { tipsFor } from "../lib/games";
@@ -111,11 +110,6 @@ export default function Profiles() {
                             </span>
                             <Toggle label="Vollbild-Optimierungen aus" checked={p.disableFullscreenOptimizations} disabled={!p.exePath} onChange={(v) => setFso(p, v)} />
                           </div>
-                          <Details label="Was bringt das?">
-                            Windows behandelt Vollbild-Spiele intern oft wie Fenster („Vollbild-Optimierungen“). Meist ist das gut. Bei manchen
-                            älteren Spielen senkt Abschalten die Eingabeverzögerung minimal – bei neueren bringt es oft nichts. Am besten mit der
-                            Vorher-/Nachher-Messung prüfen.
-                          </Details>
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5 text-xs font-medium text-muted"><Lightbulb size={13} /> Empfohlen im Spiel</div>
@@ -136,7 +130,7 @@ export default function Profiles() {
         <div className="col-span-12 space-y-4 lg:col-span-4">
           <Card title="Auto-Boost" action={<Zap size={16} className="text-faint" />}>
             <div className="flex items-start justify-between gap-4">
-              <p className="text-sm text-muted">Startet den Boost automatisch, sobald eines dieser Spiele läuft – und setzt nach dem Spiel alles zurück.</p>
+              <p className="text-sm text-muted">Boost startet beim Spielstart und endet mit dem Spiel.</p>
               <Toggle label="Auto-Boost" checked={settings?.autoBoost ?? false} disabled={!settings} onChange={(v) => updateSettings((s) => ({ ...s, autoBoost: v }))} />
             </div>
           </Card>

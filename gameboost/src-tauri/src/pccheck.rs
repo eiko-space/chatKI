@@ -27,6 +27,8 @@ pub struct CheckItem {
     pub fix: Option<&'static str>,
     pub fix_label: Option<&'static str>,
     pub fix_needs_admin: bool,
+    /// Konkrete Schritte „So behebst du es“ (leer, wenn alles in Ordnung ist)
+    pub steps: Vec<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -146,7 +148,7 @@ mod imp {
     use winreg::RegKey;
 
     fn item(id: &'static str, title: &'static str, level: Level, value: String, explanation: String) -> CheckItem {
-        CheckItem { id, title, level, value, explanation, details: None, fix: None, fix_label: None, fix_needs_admin: false }
+        CheckItem { id, title, level, value, explanation, details: None, fix: None, fix_label: None, fix_needs_admin: false, steps: Vec::new() }
     }
 
     pub fn run_checks(gpu_name: Option<String>, gpu_temp: Option<f32>, wlan: bool) -> CheckReport {
@@ -200,8 +202,8 @@ mod imp {
         };
         let days = days_since_driver_date(&date, crate::storage::unix_now());
         let (level, text) = match days {
-            Some(d) if d > 365 => (Level::Bad, "Dein Grafiktreiber ist über ein Jahr alt. Neue Treiber enthalten oft Leistungsverbesserungen und Fehlerbehebungen für aktuelle Spiele.".into()),
-            Some(d) if d > 180 => (Level::Warn, "Dein Grafiktreiber ist älter als ein halbes Jahr. Ein Update lohnt sich besonders bei neuen Spielen.".into()),
+            Some(d) if d > 365 => (Level::Bad, "Über ein Jahr alt. Neue Treiber bringen oft mehr FPS und beheben Fehler in aktuellen Spielen.".into()),
+            Some(d) if d > 180 => (Level::Warn, "Älter als ein halbes Jahr. Ein Update lohnt sich besonders bei neuen Spielen.".into()),
             Some(_) => (Level::Good, "Dein Grafiktreiber ist aktuell genug.".into()),
             None => (Level::Info, "Treiberdatum unbekannt.".into()),
         };
@@ -209,8 +211,16 @@ mod imp {
         i.details = Some(format!("{name} · Version {version} · Datum {date}"));
         if level != Level::Good {
             let lower = name.to_lowercase();
-            i.fix = Some(if lower.contains("nvidia") { "driver_nvidia" } else if lower.contains("amd") || lower.contains("radeon") { "driver_amd" } else { "driver_intel" });
+            let (fix, steps): (&'static str, [&str; 3]) = if lower.contains("nvidia") {
+                ("driver_nvidia", ["Auf „Treiber-Seite öffnen“ klicken – oder die „NVIDIA App“ öffnen und unter „Treiber“ aktualisieren", "Deine Karte wählen und den „Game Ready“-Treiber herunterladen", "Installieren („Schnellinstallation“) und PC neu starten"])
+            } else if lower.contains("amd") || lower.contains("radeon") {
+                ("driver_amd", ["Auf „Treiber-Seite öffnen“ klicken – oder „AMD Software: Adrenalin“ öffnen → „Nach Updates suchen“", "Den empfohlenen Treiber herunterladen", "Installieren und PC neu starten"])
+            } else {
+                ("driver_intel", ["Auf „Treiber-Seite öffnen“ klicken", "„Intel Driver & Support Assistant“ laden und starten", "Vorgeschlagenen Grafiktreiber installieren und PC neu starten"])
+            };
+            i.fix = Some(fix);
             i.fix_label = Some("Treiber-Seite öffnen");
+            i.steps = std::iter::once(format!("Deine Grafikkarte: {name}")).chain(steps.iter().map(|x| x.to_string())).collect();
         }
         i
     }
@@ -276,6 +286,11 @@ mod imp {
             format!("Dein Bildschirm könnte {} Hz, läuft aber nur mit {} Hz. Das ist einer der häufigsten Fehler – du siehst dann weniger Bilder, als dein PC liefert.", below[0].max, below[0].current));
         i.fix = Some("monitor_max_hz");
         i.fix_label = Some("Auf maximale Hz stellen");
+        i.steps = vec![
+            "Am einfachsten: auf „Auf maximale Hz stellen“ klicken".into(),
+            "Oder von Hand: Windows-Einstellungen → System → Anzeige → Erweiterte Anzeige → Bildwiederholrate".into(),
+            "Klappt es nicht: Prüfe, ob das Kabel High-Hz kann (DisplayPort oder HDMI 2.0+) und am Grafikkarten-Anschluss steckt – nicht am Mainboard".into(),
+        ];
         i
     }
 
@@ -316,7 +331,14 @@ mod imp {
         };
         let (level, text) = ram_assessment(&kind, rated, configured);
         let mut i = item("ram", "Arbeitsspeicher-Takt", level, format!("{kind} · {configured} MT/s"), text);
-        i.details = Some(format!("{} Modul(e); Nenntakt laut Modul {rated} MT/s, eingestellt {configured} MT/s. XMP/EXPO lässt sich nur im BIOS ändern.", modules.len()));
+        i.details = Some(format!("{} Modul(e); Nenntakt laut Modul {rated} MT/s, eingestellt {configured} MT/s.", modules.len()));
+        if i.level != Level::Good {
+            i.steps = vec![
+                "PC neu starten und beim Start mehrmals Entf oder F2 drücken – das BIOS öffnet sich".into(),
+                "Nach „XMP“ (Intel), „EXPO“ oder „DOCP“ (AMD) suchen und „Profil 1“ wählen".into(),
+                "Mit F10 speichern und neu starten. Startet der PC nicht, setzt er sich nach 3 Versuchen meist selbst zurück".into(),
+            ];
+        }
         i
     }
 
@@ -342,6 +364,11 @@ mod imp {
         if level != Level::Good {
             i.fix = Some("storage_settings");
             i.fix_label = Some("Speicher aufräumen öffnen");
+            i.steps = vec![
+                "Auf „Speicher aufräumen öffnen“ klicken → „Temporäre Dateien“ löschen".into(),
+                "Spiele, die du nicht mehr spielst, im Launcher deinstallieren".into(),
+                "Große Spiele auf eine andere Festplatte verschieben (in Steam: Eigenschaften → Installierte Dateien → Verschieben)".into(),
+            ];
         }
         i
     }
@@ -383,6 +410,13 @@ mod imp {
         i.details = Some(names.join(", "));
         i.fix = Some("startup_apps");
         i.fix_label = Some("Autostart verwalten");
+        if n > 15 {
+            i.steps = vec![
+                "Auf „Autostart verwalten“ klicken".into(),
+                "Alles ausschalten, was du nicht sofort nach dem Hochfahren brauchst (z. B. Launcher, Updater, Cloud-Programme)".into(),
+                "Virenschutz und Treiber-Programme (Audio, Maus) eingeschaltet lassen".into(),
+            ];
+        }
         i
     }
 
@@ -408,8 +442,16 @@ mod imp {
             }
         }
         match val {
-            Some(v) if v >= 5.0 => item("throttle", "CPU-Drosselung", Level::Bad, format!("{v:.0} % begrenzt"),
-                "Dein Prozessor wird gerade gedrosselt – meist wegen Hitze oder Strombegrenzung. Prüfe Kühlung und Lüfter, bei Laptops das Netzteil.".into()),
+            Some(v) if v >= 5.0 => {
+                let mut i = item("throttle", "CPU-Drosselung", Level::Bad, format!("{v:.0} % begrenzt"),
+                    "Dein Prozessor wird gerade gedrosselt – meist wegen Hitze oder Strombegrenzung.".into());
+                i.steps = vec![
+                    "Laptop: Netzteil anschließen und auf einer harten, freien Fläche betreiben".into(),
+                    "PC: Staub aus Lüftern und Kühlern entfernen (Druckluft), Gehäuselüfter prüfen".into(),
+                    "Energieplan auf „Höchstleistung“ – das macht der Boost automatisch".into(),
+                ];
+                i
+            }
             Some(_) => item("throttle", "CPU-Drosselung", Level::Good, "keine".into(), "Dein Prozessor wird gerade nicht gedrosselt.".into()),
             None => item("throttle", "CPU-Drosselung", Level::Info, String::new(), String::new()),
         }
@@ -417,7 +459,15 @@ mod imp {
 
     fn temp_check(t: Option<f32>) -> CheckItem {
         match t {
-            Some(t) if t >= 85.0 => item("gpu_temp", "Grafikkarten-Temperatur", Level::Bad, format!("{t:.0} °C"), "Deine Grafikkarte ist sehr heiß. Ab etwa 85 °C takten viele Karten herunter. Staub entfernen und Gehäuselüfter prüfen.".into()),
+            Some(t) if t >= 85.0 => {
+                let mut i = item("gpu_temp", "Grafikkarten-Temperatur", Level::Bad, format!("{t:.0} °C"), "Deine Grafikkarte ist sehr heiß. Ab etwa 85 °C takten viele Karten herunter.".into());
+                i.steps = vec![
+                    "Staub aus Grafikkarte und Gehäuse entfernen (Druckluft, PC vorher ausschalten)".into(),
+                    "Prüfen, ob alle Gehäuselüfter laufen und das Gehäuse Luft bekommt".into(),
+                    "FPS begrenzen (z. B. auf deine Monitor-Hz) – spart Hitze ohne sichtbaren Nachteil".into(),
+                ];
+                i
+            }
             Some(t) if t >= 78.0 => item("gpu_temp", "Grafikkarten-Temperatur", Level::Warn, format!("{t:.0} °C"), "Deine Grafikkarte ist warm. Unter Last ist das normal – im Leerlauf sollte sie deutlich kühler sein.".into()),
             Some(t) => item("gpu_temp", "Grafikkarten-Temperatur", Level::Good, format!("{t:.0} °C"), "Temperatur im grünen Bereich.".into()),
             None => item("gpu_temp", "Grafikkarten-Temperatur", Level::Info, String::new(), String::new()),
@@ -435,6 +485,7 @@ mod imp {
         if !on {
             i.fix = Some("game_mode_on");
             i.fix_label = Some("Dauerhaft einschalten");
+            i.steps = vec!["Auf „Dauerhaft einschalten“ klicken – fertig".into()];
         }
         i
     }
@@ -450,6 +501,7 @@ mod imp {
         if on {
             i.fix = Some("dvr_off");
             i.fix_label = Some("Dauerhaft ausschalten");
+            i.steps = vec!["Auf „Dauerhaft ausschalten“ klicken – oder einfach den Boost nutzen, der das während des Spielens macht".into()];
         }
         i
     }
@@ -464,6 +516,7 @@ mod imp {
                 i.fix = Some("hags_on");
                 i.fix_label = Some("Einschalten (Neustart nötig)");
                 i.fix_needs_admin = true;
+                i.steps = vec!["Auf „Einschalten“ klicken (braucht Admin-Rechte)".into(), "PC neu starten".into(), "Mit der Vorher-/Nachher-Messung prüfen, ob es bei dir etwas bringt".into()];
                 i
             }
             None => item("hags", "Hardwarebeschleunigte GPU-Planung", Level::Info, String::new(), String::new()),
@@ -472,7 +525,15 @@ mod imp {
 
     fn network_check(wlan: bool) -> CheckItem {
         if wlan {
-            item("network", "Internetverbindung", Level::Warn, "WLAN".into(), "Du spielst über WLAN. WLAN schwankt deutlich stärker als ein LAN-Kabel und verursacht häufiger Ping-Spitzen. Wenn möglich: Kabel nutzen.".into())
+            {
+                let mut i = item("network", "Internetverbindung", Level::Warn, "WLAN".into(), "WLAN schwankt deutlich stärker als ein Kabel und verursacht häufiger Ping-Spitzen.".into());
+                i.steps = vec![
+                    "Am besten: LAN-Kabel vom Router zum PC (bringt am meisten gegen Ping-Spitzen)".into(),
+                    "Geht kein Kabel: mit dem 5-GHz-WLAN verbinden statt 2,4 GHz".into(),
+                    "Router frei aufstellen, nicht hinter Metall oder im Schrank".into(),
+                ];
+                i
+            }
         } else {
             item("network", "Internetverbindung", Level::Good, "LAN".into(), "Kabelverbindung – ideal zum Spielen.".into())
         }
@@ -557,7 +618,7 @@ mod tests {
 
     #[test]
     fn scoring() {
-        let mk = |level| CheckItem { id: "x", title: "x", level, value: "v".into(), explanation: String::new(), details: None, fix: None, fix_label: None, fix_needs_admin: false };
+        let mk = |level| CheckItem { id: "x", title: "x", level, value: "v".into(), explanation: String::new(), details: None, fix: None, fix_label: None, fix_needs_admin: false, steps: Vec::new() };
         assert_eq!(score(&[mk(Level::Good), mk(Level::Info)]), 100);
         assert_eq!(score(&[mk(Level::Bad), mk(Level::Warn)]), 79);
     }

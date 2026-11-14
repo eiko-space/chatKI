@@ -25,6 +25,9 @@ pub struct Measurement {
     pub spikes_per_min: Option<f32>,
     pub cpu_avg: Option<f32>,
     pub gpu_avg: Option<f32>,
+    /// Eingabe → Bild (nur, wenn währenddessen Maus/Tastatur benutzt wurde)
+    #[serde(default)]
+    pub input_latency_ms: Option<f32>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -45,12 +48,13 @@ pub struct Recording {
     frametimes: Vec<f32>,
     cpu: Vec<f32>,
     gpu: Vec<f32>,
+    latency: Vec<f32>,
     pub problem: Option<String>,
 }
 
 impl Recording {
     pub fn new(label: String) -> Self {
-        Self { label, started: Instant::now(), pid: None, game: None, frametimes: Vec::new(), cpu: Vec::new(), gpu: Vec::new(), problem: None }
+        Self { label, started: Instant::now(), pid: None, game: None, frametimes: Vec::new(), cpu: Vec::new(), gpu: Vec::new(), latency: Vec::new(), problem: None }
     }
 
     pub fn started(&self) -> Instant {
@@ -71,6 +75,12 @@ impl Recording {
     }
 
     /// Wird zweimal pro Sekunde mit den neuen Daten aufgerufen.
+    pub fn add_latency(&mut self, ms: Option<f32>) {
+        if let Some(v) = ms {
+            self.latency.push(v);
+        }
+    }
+
     pub fn add(&mut self, pid: Option<u32>, game: Option<String>, frametimes: &[f32], cpu: Option<f32>, gpu: Option<f32>) {
         match (self.pid, pid) {
             (None, Some(p)) => {
@@ -111,6 +121,7 @@ impl Recording {
             spikes_per_min: ping.spikes.filter(|_| ping.window_secs > 5.0).map(|s| s as f32 * 60.0 / ping.window_secs),
             cpu_avg: avg(&self.cpu),
             gpu_avg: avg(&self.gpu),
+            input_latency_ms: avg(&self.latency),
         }
     }
 }

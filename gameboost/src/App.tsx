@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Route, Routes } from "react-router";
+import { Route, Routes, useLocation } from "react-router";
 import { Sidebar } from "./components/layout/Sidebar";
 import { getAppInfo, type AppInfo } from "./lib/tauri";
 import { TelemetryProvider } from "./lib/telemetry";
@@ -20,6 +20,7 @@ import Account from "./pages/Account";
 
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const location = useLocation();
 
   useEffect(() => {
     getAppInfo().then(setInfo).catch((e) => console.error("get_app_info fehlgeschlagen:", e));
@@ -34,7 +35,7 @@ export default function App() {
     <div className="flex h-full">
       <Sidebar version={info?.version ?? null} />
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-6xl px-8 py-8">
+        <div key={location.pathname} className="mx-auto max-w-6xl px-8 py-8 animate-fade-in">
           <Routes>
             <Route path="/" element={<Dashboard info={info} />} />
             <Route path="/boost" element={<Boost info={info} />} />

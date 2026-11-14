@@ -37,7 +37,7 @@ export function MeasureWizard() {
   const ready = isTauri() && capturing && !!fps;
 
   return (
-    <Card title="Was bringt der Boost?" subtitle="Ehrlicher Vorher-/Nachher-Vergleich mit je 60 Sekunden Messung" action={<FlaskConical size={16} className="text-faint" />}>
+    <Card title="Was bringt der Boost?" subtitle="Je 60 s ohne und mit Boost messen" action={<FlaskConical size={16} className="text-faint" />}>
       {m.error && <p className="mb-3 text-sm text-bad">{m.error}</p>}
 
       {m.step === "idle" && (

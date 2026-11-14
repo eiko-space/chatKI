@@ -65,7 +65,7 @@ export default function PcCheck({ info }: { info: AppInfo | null }) {
 
   return (
     <>
-      <PageHeader title="PC-Check" description="Findet typische Bremsen und erklärt sie in einfachem Deutsch." />
+      <PageHeader title="PC-Check" description="Findet Bremsen und sagt dir, wie du sie behebst." />
       {error && <p className="mb-4 text-sm text-bad">{error}</p>}
       <div className="grid grid-cols-12 gap-4">
         <Card className="col-span-12 flex flex-col items-center justify-center gap-4 py-8 lg:col-span-4">
@@ -81,15 +81,15 @@ export default function PcCheck({ info }: { info: AppInfo | null }) {
 
         <Card className="col-span-12 lg:col-span-8" title="Ergebnis">
           {!report ? (
-            <p className="text-sm text-faint">Geprüft werden: Grafiktreiber, Bildwiederholrate, RAM-Takt (XMP/EXPO), Speicherplatz, Autostart, CPU-Drosselung, GPU-Temperatur, Spielmodus, Xbox-Aufnahme, GPU-Planung und Internetverbindung.</p>
+            <p className="text-sm text-faint">Treiber, Monitor-Hz, RAM-Takt, Speicher, Autostart, Temperaturen, Windows-Einstellungen und Internet.</p>
           ) : (
             <ul className="divide-y divide-line">
-              {report.items.map((item) => {
+              {report.items.map((item, idx) => {
                 const meta = ICON[item.level];
                 const Icon = meta.icon;
                 const locked = item.fixNeedsAdmin && !info?.isElevated;
                 return (
-                  <li key={item.id} className="py-3 first:pt-0 last:pb-0">
+                  <li key={item.id} className="py-3 first:pt-0 last:pb-0 animate-pop-in" style={{ animationDelay: `${idx * 60}ms` }}>
                     <div className="flex items-start gap-3">
                       <Icon size={18} className={`mt-0.5 shrink-0 ${meta.cls}`} aria-label={meta.label} />
                       <div className="min-w-0 flex-1">
@@ -98,6 +98,14 @@ export default function PcCheck({ info }: { info: AppInfo | null }) {
                           <span className="text-sm tabular-nums text-muted">{item.value}</span>
                         </div>
                         <p className="mt-0.5 text-xs leading-relaxed text-muted">{item.explanation}</p>
+                        {item.steps.length > 0 && (
+                          <div className="mt-3 rounded-lg bg-surface-2 p-3">
+                            <div className="text-xs font-semibold text-text">So behebst du es</div>
+                            <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-xs text-muted">
+                              {item.steps.map((st) => <li key={st}>{st}</li>)}
+                            </ol>
+                          </div>
+                        )}
                         {item.fix && (
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <Button className="h-8" onClick={() => fix(item)} disabled={locked}>
@@ -107,7 +115,7 @@ export default function PcCheck({ info }: { info: AppInfo | null }) {
                             {fixMsg[item.id] && <span className="text-xs text-muted">{fixMsg[item.id]}</span>}
                           </div>
                         )}
-                        {item.details && <Details>{item.details}</Details>}
+                        {item.details && <Details label="Details">{item.details}</Details>}
                       </div>
                     </div>
                   </li>

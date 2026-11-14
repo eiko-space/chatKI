@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, type BoostStatus, type Settings, type TweakInfo, type TweakResult } from "./api";
 import { isTauri } from "./tauri";
@@ -23,7 +23,13 @@ const Ctx = createContext<AppState | null>(null);
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [catalog, setCatalog] = useState<TweakInfo[]>([]);
   const [boost, setBoost] = useState<BoostStatus | null>(null);
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const [settings, setSettingsState] = useState<Settings | null>(null);
+  // Immer aktueller Stand – verhindert, dass schnelle Klicks Änderungen überschreiben
+  const settingsRef = useRef<Settings | null>(null);
+  const setSettings = useCallback((s: Settings | null) => {
+    settingsRef.current = s;
+    setSettingsState(s);
+  }, []);
   const [busy, setBusy] = useState(false);
   const [lastRevert, setLastRevert] = useState<TweakResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +40,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setCatalog(c);
     setBoost(b);
     setSettings(s);
-  }, []);
+  }, [setSettings]);
 
   useEffect(() => {
     refresh().catch((e) => setError(String(e)));
@@ -44,7 +50,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       listen("settings-changed", () => api.getSettings().then(setSettings)),
     ];
     return () => subs.forEach((p) => p.then((f) => f()));
-  }, [refresh]);
+  }, [refresh, setSettings]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -79,8 +85,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       await api.saveSettings(s);
     },
     updateSettings: async (fn) => {
-      if (!settings) return;
-      const next = fn(settings);
+      const current = settingsRef.current;
+      if (!current) return;
+      const next = fn(current);
       setSettings(next);
       await api.saveSettings(next);
     },

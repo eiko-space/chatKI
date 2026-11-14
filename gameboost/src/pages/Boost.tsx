@@ -35,7 +35,7 @@ export default function Boost({ info }: { info: AppInfo | null }) {
 
   return (
     <>
-      <PageHeader title="Boost" description="Jeder Tweak ist einzeln schaltbar, erklärt und wird beim Beenden vollständig zurückgesetzt." />
+      <PageHeader title="Boost" description="Alles einzeln schaltbar und komplett rückgängig machbar." />
 
       <div className="grid grid-cols-12 gap-4">
         <Card className="col-span-12 flex flex-col items-center justify-center py-8 lg:col-span-5">
@@ -53,11 +53,9 @@ export default function Boost({ info }: { info: AppInfo | null }) {
           ) : lastRevert && lastRevert.length > 0 ? (
             <ResultList results={lastRevert} />
           ) : (
-            <p className="text-sm text-faint">Noch kein Boost aktiv. Nach dem Start siehst du hier für jeden Tweak, was genau passiert ist – auch was übersprungen wurde.</p>
+            <p className="text-sm text-faint">Noch kein Boost aktiv.</p>
           )}
-          <p className="mt-4 text-xs text-faint">
-            Ob der Boost auf deinem PC wirklich etwas bringt, zeigt die Vorher-/Nachher-Messung unten – ehrlich, auch wenn es nichts bringt.
-          </p>
+
         </Card>
 
         <div className="col-span-12">
@@ -87,7 +85,6 @@ export default function Boost({ info }: { info: AppInfo | null }) {
                         onChange={(v) => toggle(t.id, v)}
                       />
                     </div>
-                    <Details label="Was passiert genau?">{t.details}</Details>
                   </li>
                 );
               })}
@@ -95,7 +92,7 @@ export default function Boost({ info }: { info: AppInfo | null }) {
           </Card>
         ))}
 
-        <Card className="col-span-12 lg:col-span-6" title="Geschützt" subtitle="Diese laufenden Programme fasst der Boost nie an" action={<ShieldCheck size={16} className="text-good" />}>
+        <Card className="col-span-12 lg:col-span-6" title="Geschützt" subtitle="Wird nie beendet" action={<ShieldCheck size={16} className="text-good" />}>
           {protectedApps.length === 0 ? (
             <p className="text-sm text-faint">{isTauri() ? "Gerade läuft nichts aus der Schutzliste." : "Nur in der App verfügbar."}</p>
           ) : (
@@ -117,7 +114,7 @@ export default function Boost({ info }: { info: AppInfo | null }) {
           </Details>
         </Card>
 
-        <Card className="col-span-12 lg:col-span-6" title="Änderungsprotokoll" subtitle="Jede Änderung am System – mit Uhrzeit">
+        <Card className="col-span-12 lg:col-span-6" title="Änderungsprotokoll" >
           {log.length === 0 ? (
             <p className="text-sm text-faint">Noch keine Änderungen.</p>
           ) : (

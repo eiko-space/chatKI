@@ -68,6 +68,17 @@ pub struct Snapshot {
     pub network: NetworkStats,
     /// Laufende 60-s-Messung (Vorher/Nachher)
     pub measurement: Option<MeasurementProgress>,
+    /// Werte der letzten 60 s vor dem Boost – zum Live-Vergleich auf dem Dashboard
+    pub boost_baseline: Option<BoostBaseline>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BoostBaseline {
+    /// Sekunden seit Boost-Start
+    pub seconds_since: f32,
+    pub fps: Option<FpsStats>,
+    pub ping: PingStats,
 }
 
 pub struct Hub {
@@ -80,6 +91,7 @@ pub struct Hub {
     presentmon: Option<PathBuf>,
     recording: Mutex<Option<Recording>>,
     latest: Mutex<Option<Snapshot>>,
+    baseline: Mutex<Option<(Instant, Option<FpsStats>, PingStats)>>,
 }
 
 impl Hub {
@@ -95,6 +107,7 @@ impl Hub {
             presentmon,
             recording: Mutex::new(None),
             latest: Mutex::new(None),
+            baseline: Mutex::new(None),
         })
     }
 
@@ -151,7 +164,23 @@ impl Hub {
                 link,
             },
             measurement: self.recording.lock().unwrap().as_ref().map(|r| r.progress()),
+            boost_baseline: self.baseline.lock().unwrap().as_ref().map(|(at, fps, ping)| BoostBaseline {
+                seconds_since: at.elapsed().as_secs_f32(),
+                fps: fps.clone(),
+                ping: ping.clone(),
+            }),
         }
+    }
+
+    /// Beim Boost-Start: aktuelle 60-s-Werte als Vergleichsbasis merken.
+    pub fn capture_baseline(&self) {
+        let fps = self.frames.lock().unwrap().stats();
+        let ping = self.internet.lock().unwrap().stats();
+        *self.baseline.lock().unwrap() = Some((Instant::now(), fps, ping));
+    }
+
+    pub fn clear_baseline(&self) {
+        *self.baseline.lock().unwrap() = None;
     }
 
     /// Letzter Schnappschuss (z. B. für Overlay, Benachrichtigungen, Auto-Boost).
@@ -183,6 +212,7 @@ impl Hub {
             snap.system.cpu_usage,
             snap.gpu.usage,
         );
+        rec.add_latency(snap.fps.as_ref().and_then(|f| f.input_latency_ms));
         if !rec.done() {
             return None;
         }

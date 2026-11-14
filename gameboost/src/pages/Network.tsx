@@ -5,7 +5,6 @@ import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { Metric } from "../components/ui/Metric";
-import { Details } from "../components/ui/Details";
 import { toolsApi, type NetApp, type RegionResult, type TraceResult } from "../lib/api";
 import { useTelemetry } from "../lib/telemetry";
 import { isTauri } from "../lib/tauri";
@@ -68,7 +67,7 @@ export default function Network() {
 
   return (
     <>
-      <PageHeader title="Netzwerk" description="Ping-Spitzen finden und verstehen – mit echten Messungen." />
+      <PageHeader title="Netzwerk" description="Ping-Spitzen finden und verstehen." />
       {error && <p className="mb-4 text-sm text-bad">{error}</p>}
       <div className="grid grid-cols-12 gap-4">
         <Card
@@ -84,11 +83,11 @@ export default function Network() {
             <Metric label="Router-Ping" value={num(net?.router.lastMs)} unit="ms" />
           </div>
           {net?.connection === "wlan" && (
-            <p className="mt-4 text-xs text-muted">Du bist per WLAN verbunden. Für stabilen Ping ist ein LAN-Kabel fast immer besser.</p>
+            <p className="mt-4 text-xs text-muted">WLAN – ein LAN-Kabel ist für stabilen Ping fast immer besser.</p>
           )}
         </Card>
 
-        <Card className="col-span-12 lg:col-span-5" title="Programme mit Internetverbindung" subtitle="Aktive Verbindungen (Anzahl, nicht Datenmenge)">
+        <Card className="col-span-12 lg:col-span-5" title="Programme mit Internetverbindung" subtitle="Anzahl aktiver Verbindungen">
           {apps.length === 0 ? (
             <p className="text-sm text-faint">{isTauri() ? "Keine aktiven Verbindungen gefunden." : "Nur in der App verfügbar."}</p>
           ) : (
@@ -101,17 +100,12 @@ export default function Network() {
               ))}
             </ul>
           )}
-          <Details>
-            Gezählt werden bestehende TCP-Verbindungen ins Internet. Wie viele Daten ein Programm gerade überträgt, zeigt Windows
-            ohne tiefere Systemeingriffe nicht pro Programm an – darum zeigen wir ehrlich nur die Verbindungen. Den Gesamtdurchsatz
-            siehst du im Dashboard.
-          </Details>
         </Card>
 
         <Card
           className="col-span-12"
           title="Beste Server-Region finden"
-          subtitle="Verbindungszeit zu Rechenzentren, in denen viele Spielserver laufen (Amazon AWS)"
+          subtitle="Rechenzentren, in denen viele Spielserver laufen"
           action={
             <Button variant="primary" onClick={runRegions} disabled={regionBusy || !isTauri()}>
               {regionBusy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} {regionBusy ? "Messe …" : "Test starten"}
@@ -119,13 +113,12 @@ export default function Network() {
           }
         >
           {!regions ? (
-            <p className="text-sm text-faint">Dauert etwa 5 Sekunden. Danach siehst du, welche Region für dich am schnellsten ist.</p>
+            <p className="text-sm text-faint">Dauert ca. 5 Sekunden.</p>
           ) : (
             <>
               {best && (
                 <p className="mb-4 flex items-center gap-2 text-sm">
-                  <Trophy size={16} className="text-accent" /> Empfehlung: <b>{best.city}</b> ({best.area}) mit {num(best.medianMs)} ms.
-                  Stelle im Spiel – wenn möglich – diese Region ein.
+                  <Trophy size={16} className="text-accent" /> Beste Region: <b>{best.city}</b> · {num(best.medianMs)} ms
                 </p>
               )}
               <ul className="space-y-2">
@@ -146,17 +139,12 @@ export default function Network() {
               </ul>
             </>
           )}
-          <Details>
-            Gemessen wird die Zeit für den Verbindungsaufbau (TCP-Handshake) zum jeweiligen Amazon-Rechenzentrum – 5 Versuche,
-            angezeigt wird der Median. Viele Spiele (z. B. Fortnite, Apex, Valorant, Rocket League) betreiben Server dort oder in
-            der Nähe. Der Ping zum echten Spielserver kann trotzdem etwas abweichen, weil Spiele eigene Netze nutzen.
-          </Details>
         </Card>
 
         <Card
           className="col-span-12"
           title="Route-Analyse"
-          subtitle="Wo auf dem Weg zum Server entsteht der Ping? (wie WinMTR)"
+          subtitle="Wo entsteht der Ping?"
           action={<Route size={16} className="text-faint" />}
         >
           <form

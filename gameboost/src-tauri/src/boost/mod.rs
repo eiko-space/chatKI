@@ -42,6 +42,13 @@ pub enum Revert {
     Registry { entries: Vec<RegEntry> },
     Services { names: Vec<String> },
     Wlan { interfaces: Vec<(String, bool, bool)> },
+    /// Mausbeschleunigung: [Schwelle1, Schwelle2, Beschleunigung]
+    Mouse { previous: [i32; 3] },
+    /// Energiespar-Werte im Energieplan: (Untergruppe, Einstellung, Netz, Akku)
+    DevicePower { scheme: String, values: Vec<(String, String, u32, u32)> },
+    StickyKeys { flags: u32 },
+    /// Mehrere Änderungen eines Tweaks (werden rückwärts zurückgesetzt)
+    Multi { parts: Vec<Revert> },
 }
 
 // ------------------------------------------------------------------ Katalog
@@ -94,6 +101,21 @@ pub fn catalog() -> &'static [TweakInfo] {
             id: "game_dvr", title: "Xbox-Aufnahme im Hintergrund aus", category: "fps", needs_admin: false, default_on: true, one_shot: false,
             summary: "Keine ständige Videoaufzeichnung im Hintergrund.",
             details: "Schaltet die Hintergrundaufnahme der Xbox Game Bar (Game DVR) aus. Sie zeichnet sonst ständig die letzten Minuten auf und kostet GPU-Leistung. Die Game Bar selbst bleibt nutzbar.",
+        },
+        TweakInfo {
+            id: "device_power", title: "Energiesparen von USB, PCIe & WLAN aus", category: "fps", needs_admin: false, default_on: true, one_shot: false,
+            summary: "Maus, Grafikkarte und Netzwerk werden nicht mehr schlafen gelegt.",
+            details: "Schaltet im aktiven Energieplan das selektive USB-Energiesparen, die PCI-Express-Verbindungsenergieverwaltung und den WLAN-Energiesparmodus aus. Verhindert kurze Aufwach-Verzögerungen.",
+        },
+        TweakInfo {
+            id: "mouse_accel", title: "Mausbeschleunigung aus", category: "fps", needs_admin: false, default_on: true, one_shot: false,
+            summary: "Gleiche Handbewegung = gleiche Zielbewegung.",
+            details: "Schaltet „Zeigerbeschleunigung verbessern“ aus. Dadurch hängt der Weg des Mauszeigers nur noch von der Strecke ab, nicht vom Tempo – wichtig für präzises Zielen (in Spielen mit Raw Input ohne Wirkung).",
+        },
+        TweakInfo {
+            id: "no_interruptions", title: "Keine Störungen im Spiel", category: "fps", needs_admin: false, default_on: true, one_shot: false,
+            summary: "Keine Windows-Popups und kein Einrastetasten-Fenster beim Shift-Spammen.",
+            details: "Blendet Windows-Benachrichtigungen aus und deaktiviert das Tastenkürzel für die Einrastfunktion (5× Shift), das sonst mitten im Spiel ein Fenster öffnet.",
         },
         TweakInfo {
             id: "standby_list", title: "Standby-Speicher leeren", category: "fps", needs_admin: true, default_on: false, one_shot: true,
@@ -244,6 +266,9 @@ impl BoostEngine {
                     "game_mode" => tweaks::registry(GAME_MODE),
                     "game_dvr" => tweaks::registry(GAME_DVR),
                     "standby_list" => tweaks::purge_standby_list(),
+                    "device_power" => tweaks::device_power(),
+                    "mouse_accel" => tweaks::mouse_accel(),
+                    "no_interruptions" => tweaks::no_interruptions(),
                     "pause_updates" => tweaks::stop_update_services(),
                     "wlan_low_latency" => tweaks::wlan_low_latency(),
                     _ => Err("SKIP:Unbekannter Tweak.".into()),

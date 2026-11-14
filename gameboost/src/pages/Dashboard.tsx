@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { BoostControl } from "../components/BoostControl";
+import { BoostEffect } from "../components/BoostEffect";
 import { AlertTriangle, Cpu, Gamepad2, Loader2, Play, ShieldCheck, Square, Wifi, WifiOff } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Metric } from "../components/ui/Metric";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
-import { Details } from "../components/ui/Details";
 import { Dialog } from "../components/ui/Dialog";
 import { PageHeader } from "../components/ui/PageHeader";
 import { UsageBar } from "../components/ui/UsageBar";
@@ -22,7 +22,7 @@ export default function Dashboard({ info }: { info: AppInfo | null }) {
     <>
       <PageHeader
         title="Dashboard"
-        description="Live-Werte deines PCs. Angezeigt werden nur echte Messungen – was nicht gemessen werden kann, steht als „—“ da."
+        description="Live-Werte deines PCs – nur echte Messungen."
         action={
           fps ? (
             <Badge tone="accent"><Gamepad2 size={11} /> {fps.game ?? fps.app}</Badge>
@@ -38,6 +38,7 @@ export default function Dashboard({ info }: { info: AppInfo | null }) {
         </Card>
 
         <FpsCard info={info} snapshot={snapshot} />
+        <BoostEffect />
         <NetworkCard snapshot={snapshot} />
         <HardwareCard snapshot={snapshot} />
       </div>
@@ -106,18 +107,18 @@ function FpsCard({ info, snapshot }: { info: AppInfo | null; snapshot: Snapshot 
       {fps && (
         <div className="mt-4 grid grid-cols-2 gap-6 sm:grid-cols-4">
           <Metric label="Frametime Ø" value={num(fps.frametimeAvgMs, 1)} unit="ms" />
-          <Metric label="Schwankung" value={num(fps.frametimeStdDevMs, 1)} unit="ms" hint="Standardabweichung" />
+          <Metric label="Schwankung" value={num(fps.frametimeStdDevMs, 1)} unit="ms"  />
           <Metric
-            label="Eingabe → Bild"
+            label="Input-Delay"
             value={num(fps.inputLatencyMs, 1)}
             unit="ms"
-            hint={fps.inputLatencyMs === null ? "Maus/Tastatur im Spiel benutzen" : "gemessen"}
+            hint={fps.inputLatencyMs === null ? "Maus/Tastatur benutzen" : undefined}
           />
           <Metric
             label="PC-Latenz (Reflex)"
             value={num(fps.pcLatencyMs, 1)}
             unit="ms"
-            hint={fps.pcLatencyMs === null ? "Spiel liefert keine Reflex-Daten" : undefined}
+            hint={fps.pcLatencyMs === null ? "nur mit Reflex" : undefined}
           />
         </div>
       )}
@@ -128,22 +129,6 @@ function FpsCard({ info, snapshot }: { info: AppInfo | null; snapshot: Snapshot 
         </p>
       )}
 
-      <Details>
-        <p>
-          <b className="text-text">So wird gemessen:</b> Intel PresentMon liest über die Windows-Ereignisprotokollierung (ETW) mit,
-          wann ein Programm ein Bild ausgibt. Es greift nicht ins Spiel ein – keine Injection, kein Overlay – und ist daher
-          mit Anti-Cheat-Systemen verträglich.
-        </p>
-        <p className="mt-2">
-          <b className="text-text">Durchschnitt</b> = 1000 ÷ mittlere Frametime der letzten 60 s.{" "}
-          <b className="text-text">1 %-Lows</b> = 1000 ÷ Mittelwert der langsamsten 1 % aller Frametimes (analog 0,1 %).{" "}
-          <b className="text-text">Schwankung</b> = Standardabweichung der Frametimes – je kleiner, desto gleichmäßiger.
-        </p>
-        <p className="mt-2">
-          <b className="text-text">Eingabe → Bild</b> misst bei Maus- oder Tastatureingaben die Zeit bis zur Anzeige.{" "}
-          <b className="text-text">PC-Latenz</b> gibt es nur bei Spielen mit NVIDIA Reflex bzw. PC-Latency-Markern.
-        </p>
-      </Details>
 
       <Dialog
         open={dialog}
@@ -208,7 +193,7 @@ function NetworkCard({ snapshot }: { snapshot: Snapshot | null }) {
     <Card
       className="col-span-12 lg:col-span-6"
       title="Verbindung"
-      subtitle="Ping zu Cloudflare (1.1.1.1) als Internet-Referenz"
+      subtitle="Referenz-Server 1.1.1.1"
       action={
         net?.connection ? (
           <Badge tone={wlan ? "bad" : "good"}>{wlan ? <WifiOff size={11} /> : <Wifi size={11} />} {wlan ? "WLAN" : net.connection === "lan" ? "LAN-Kabel" : "Andere"}</Badge>
@@ -232,24 +217,10 @@ function NetworkCard({ snapshot }: { snapshot: Snapshot | null }) {
       {wlan && (
         <p className="mt-4 flex items-start gap-2 text-xs text-muted">
           <AlertTriangle size={14} className="mt-px shrink-0 text-bad" />
-          Du bist per WLAN verbunden. WLAN verursacht häufiger Ping-Spitzen als ein LAN-Kabel.
+          WLAN – ein LAN-Kabel senkt Ping-Spitzen meist deutlich.
         </p>
       )}
 
-      <Details>
-        <p>
-          <b className="text-text">Wichtig:</b> Das ist noch nicht der Ping zu deinem Spielserver, sondern zu einem schnellen,
-          weltweit verteilten Referenzserver. Ping-Tests zu echten Spielservern kommen in Phase 5.
-        </p>
-        <p className="mt-2">
-          <b className="text-text">Jitter</b> = mittlere Schwankung zwischen zwei Pings. <b className="text-text">Spike</b> = Ping, der mehr als
-          30 ms (bzw. 50 %) über dem Normalwert liegt. Gemessen wird alle 0,5 s, ausgewertet über 60 s.
-        </p>
-        <p className="mt-2">
-          <b className="text-text">Router-Ping:</b> Ist schon der Ping zum Router unruhig, liegt das Problem im Heimnetz (oft WLAN) –
-          nicht beim Internetanbieter.
-        </p>
-      </Details>
     </Card>
   );
 }
@@ -285,19 +256,11 @@ function HardwareCard({ snapshot }: { snapshot: Snapshot | null }) {
         <UsageBar label="VRAM" value={g?.vramUsage ?? null} detail={gb(g?.vramUsedGb, g?.vramTotalGb)} />
       </div>
       <div className="mt-5 grid grid-cols-4 gap-4 border-t border-line pt-4">
-        <Metric label="CPU-Temp." value={num(snapshot?.cpuTemperature)} unit="°C" hint="von Windows nicht bereitgestellt" />
+        <Metric label="CPU-Temp." value={num(snapshot?.cpuTemperature)} unit="°C" hint="nicht verfügbar" />
         <Metric label="GPU-Temp." value={num(g?.temperature)} unit="°C" tone={(g?.temperature ?? 0) >= 85 ? "bad" : "neutral"} />
         <Metric label="Download" value={num(net?.downloadMbps, 1)} unit="Mbit/s" />
         <Metric label="Upload" value={num(net?.uploadMbps, 1)} unit="Mbit/s" />
       </div>
-      <Details>
-        <p>
-          GPU-Werte stammen aus denselben Windows-Schnittstellen wie im Task-Manager und funktionieren für NVIDIA, AMD und Intel.
-          Die <b className="text-text">CPU-Temperatur</b> liefert Windows nicht von sich aus. Dafür wäre ein Zusatztreiber nötig,
-          der mit Anti-Cheat-Systemen Probleme machen kann – darum verzichten wir bewusst darauf.
-        </p>
-        {net?.adapter && <p className="mt-2">Netzwerkadapter: {net.adapter}</p>}
-      </Details>
     </Card>
   );
 }

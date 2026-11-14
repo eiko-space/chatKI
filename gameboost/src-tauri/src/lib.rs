@@ -36,6 +36,10 @@ pub(crate) fn boost_now<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<BoostSt
     }
     let settings = app.state::<SettingsStore>().get();
     let game = boost::find_running_game(&settings);
+    // Vergleichsbasis VOR dem Boost festhalten
+    if let Some(hub) = app.try_state::<Arc<Hub>>() {
+        hub.capture_baseline();
+    }
     let status = app.state::<BoostEngine>().apply(&settings, game, elevation::is_elevated())?;
     let _ = app.emit("boost-changed", &status);
     Ok(status)
@@ -45,6 +49,9 @@ pub(crate) fn boost_now<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<BoostSt
 pub(crate) fn revert_now<R: tauri::Runtime>(app: &AppHandle<R>) -> Vec<TweakResult> {
     let engine = app.state::<BoostEngine>();
     let results = engine.revert();
+    if let Some(hub) = app.try_state::<Arc<Hub>>() {
+        hub.clear_baseline();
+    }
     let _ = app.emit("boost-changed", engine.status());
     results
 }

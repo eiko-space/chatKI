@@ -116,6 +116,7 @@ export interface Measurement {
   spikesPerMin: number | null;
   cpuAvg: number | null;
   gpuAvg: number | null;
+  inputLatencyMs?: number | null;
 }
 
 export interface Session {
@@ -182,6 +183,7 @@ export interface CheckItem {
   fix: string | null;
   fixLabel: string | null;
   fixNeedsAdmin: boolean;
+  steps: string[];
 }
 
 export interface CheckReport {

@@ -13,11 +13,11 @@ const META = {
 export function ResultList({ results }: { results: TweakResult[] }) {
   return (
     <ul className="divide-y divide-line">
-      {results.map((r) => {
+      {results.map((r, i) => {
         const m = META[r.status] ?? META.unchanged;
         const Icon = m.icon;
         return (
-          <li key={r.id + r.status} className="flex gap-3 py-2.5">
+          <li key={r.id + r.status} className="flex gap-3 py-2.5 animate-pop-in" style={{ animationDelay: `${i * 80}ms` }}>
             <Icon size={16} className={`mt-0.5 shrink-0 ${m.cls}`} aria-label={m.label} />
             <div className="min-w-0">
               <div className="text-sm font-medium">{r.title}</div>

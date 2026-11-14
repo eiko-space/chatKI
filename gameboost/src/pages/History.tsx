@@ -54,7 +54,7 @@ export default function HistoryPage() {
 
   return (
     <>
-      <PageHeader title="Verlauf" description="Alle Vorher-/Nachher-Messungen. Nur echte Messwerte – keine Schätzungen." />
+      <PageHeader title="Verlauf" description="Alle Vorher-/Nachher-Messungen." />
       <div className="grid grid-cols-12 gap-4">
         <Card className="col-span-12 lg:col-span-4" title="Diese Woche">
           {w.count === 0 ? (
