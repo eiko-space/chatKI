@@ -46,12 +46,4 @@ impl SessionStore {
         all.retain(|x| x.id != id);
         crate::storage::write_json(&self.path, &*all)
     }
-
-    /// Ersetzt alle Sessions (z. B. nach Cloud-Sync).
-    pub fn replace_all(&self, list: Vec<Session>) -> Result<(), String> {
-        let mut all = self.sessions.lock().unwrap();
-        *all = list;
-        all.sort_by_key(|x| x.created_at);
-        crate::storage::write_json(&self.path, &*all)
-    }
 }

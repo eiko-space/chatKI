@@ -29,6 +29,26 @@ nach `src-tauri/bin/` und prüft die SHA-256-Prüfsumme. Manuell: `npm run fetch
 Die FPS-Messung braucht Administratorrechte (Windows-ETW). Im Entwicklungsmodus: Rechtsklick auf
 `GameBoost-Start.bat` → „Als Administrator ausführen“.
 
+## Konto & Cloud-Sync einrichten (optional)
+
+Ohne diese Schritte läuft GameBoost im Gast-Modus – alle Grundfunktionen gehen trotzdem.
+
+1. Kostenloses Projekt auf [supabase.com](https://supabase.com) anlegen.
+2. **SQL Editor** → Inhalt von `supabase/migrations/0001_gameboost.sql` einfügen → **Run**.
+3. **Project Settings → API**: `Project URL` und `anon public` Key kopieren.
+   Im Ordner `gameboost` die Datei `.env.example` als `.env.local` kopieren und die Werte eintragen.
+4. **Authentication → URL Configuration → Redirect URLs**: `http://127.0.0.1:53682/callback` hinzufügen.
+5. **Authentication → Providers**: Discord und Google aktivieren
+   (Client-ID/Secret aus dem [Discord Developer Portal](https://discord.com/developers/applications) bzw. der
+   [Google Cloud Console](https://console.cloud.google.com/apis/credentials); dort als Redirect die
+   Callback-URL eintragen, die Supabase beim Provider anzeigt).
+6. **Authentication → Email Templates**: In „Confirm signup“ und „Reset Password“ zusätzlich `{{ .Token }}`
+   einfügen – dann bekommt man einen Code, den man direkt in der App eingeben kann.
+
+Anmelde-Tokens werden in der **Windows-Anmeldeinformationsverwaltung** gespeichert, nicht in einer Datei.
+Synchronisiert werden nur geräteunabhängige Einstellungen und die Messungen. Die Spalte `profiles.plan`
+(free/pro) ist für eine spätere Pro-Version vorbereitet und kann nur serverseitig geändert werden.
+
 ## Tests
 
 ```bash
@@ -59,5 +79,5 @@ src-tauri/              Rust-Backend
 3. ✅ Boost-Funktionen + Rückgängig-System + Wiederherstellungspunkt
 4. ✅ Vorher-/Nachher-Messung
 5. ✅ Netzwerk-Tools und PC-Check
-6. Login (Supabase) + Cloud-Sync
+6. ✅ Login (Supabase) + Cloud-Sync
 7. Overlay, Auto-Boost, Installer

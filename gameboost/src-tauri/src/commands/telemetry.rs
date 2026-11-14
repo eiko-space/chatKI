@@ -28,8 +28,11 @@ pub fn list_sessions(store: State<'_, crate::sessions::SessionStore>) -> Vec<cra
 }
 
 #[tauri::command]
-pub fn save_session(store: State<'_, crate::sessions::SessionStore>, session: crate::sessions::Session) -> Result<(), String> {
-    store.add(session)
+pub fn save_session(app: tauri::AppHandle, store: State<'_, crate::sessions::SessionStore>, session: crate::sessions::Session) -> Result<(), String> {
+    use tauri::Emitter;
+    store.add(session)?;
+    let _ = app.emit("sessions-changed", ());
+    Ok(())
 }
 
 #[tauri::command]

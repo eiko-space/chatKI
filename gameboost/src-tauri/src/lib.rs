@@ -1,5 +1,6 @@
 #![cfg_attr(not(windows), allow(dead_code))]
 
+mod auth;
 mod boost;
 mod commands;
 mod elevation;
@@ -91,6 +92,11 @@ pub fn run() {
             commands::boost::get_settings,
             commands::boost::save_settings,
             commands::boost::set_fullscreen_optimizations,
+            commands::auth::secure_get,
+            commands::auth::secure_set,
+            commands::auth::secure_delete,
+            commands::auth::start_oauth_listener,
+            commands::auth::open_url,
             commands::tools::region_ping,
             commands::tools::traceroute,
             commands::tools::net_apps,
