@@ -58,6 +58,27 @@ Anmelde-Tokens werden in der **Windows-Anmeldeinformationsverwaltung** gespeiche
 Synchronisiert werden nur geräteunabhängige Einstellungen und die Messungen. Die Spalte `profiles.plan`
 (free/pro) ist für eine spätere Pro-Version vorbereitet und kann nur serverseitig geändert werden.
 
+## Nur für eingeladene Personen (privat nutzen)
+
+So können nur Leute GameBoost benutzen, die du freischaltest:
+
+1. **Repository privat stellen:** GitHub → Repository → **Settings → General → ganz unten „Danger Zone“ →
+   „Change visibility“ → Private**. Dann sieht niemand sonst den Code oder die Installer-Downloads.
+2. **Supabase einrichten** (Abschnitt oben) und dort unter **Authentication → Sign In / Providers**
+   **„Allow new users to sign up“ ausschalten**. Damit kann sich niemand selbst ein Konto anlegen – auch nicht über
+   Discord/Google.
+3. **Einladungs-Modus einschalten:** In `.env.local` `VITE_INVITE_ONLY=true` setzen. Für den automatischen
+   Installer: GitHub → Settings → Secrets and variables → Actions → **Secrets** `VITE_SUPABASE_URL` und
+   `VITE_SUPABASE_ANON_KEY` anlegen und unter **Variables** `VITE_INVITE_ONLY` = `true`.
+4. **Freunde freischalten:** Supabase → **Authentication → Users → „Add user“**:
+   - „Send invitation“: Die Person bekommt eine E-Mail. Damit sie den Code in der App eingeben kann, im Template
+     „Invite user“ zusätzlich `{{ .Token }}` einfügen. In der App: „Ich habe eine Einladung“.
+   - oder „Create new user“ mit E-Mail + Passwort (Haken „Auto Confirm User“) und der Person die Daten geben.
+5. Den Installer (`…_x64-setup.exe`) direkt an deine Freunde schicken.
+
+Im Einladungs-Modus startet die App mit einem Anmeldebildschirm; Tray-Boost und Auto-Boost sind bis zur Anmeldung
+gesperrt. Jemanden wieder aussperren: in Supabase unter Users den Nutzer löschen oder sperren („Ban user“).
+
 ## Overlay, Auto-Boost & Benachrichtigungen
 
 - **Overlay** (Einstellungen): eigenes, durchsichtiges Fenster, immer im Vordergrund, Klicks gehen durch.

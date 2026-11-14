@@ -22,8 +22,18 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 use telemetry::Hub;
 
+/// Gesperrt, solange im „Nur mit Einladung“-Modus niemand angemeldet ist (setzt die Oberfläche).
+pub(crate) static LOCKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn is_locked() -> bool {
+    LOCKED.load(std::sync::atomic::Ordering::SeqCst)
+}
+
 /// Boost starten (vom Knopf, vom Tray oder vom Auto-Boost).
 pub(crate) fn boost_now<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<BoostStatus, String> {
+    if is_locked() {
+        return Err("Bitte zuerst anmelden.".into());
+    }
     let settings = app.state::<SettingsStore>().get();
     let game = boost::find_running_game(&settings);
     let status = app.state::<BoostEngine>().apply(&settings, game, elevation::is_elevated())?;
@@ -41,6 +51,10 @@ pub(crate) fn revert_now<R: tauri::Runtime>(app: &AppHandle<R>) -> Vec<TweakResu
 
 pub fn run() {
     elevation::wait_for_previous_instance();
+    // Im Einladungs-Modus ist alles gesperrt, bis sich jemand anmeldet.
+    if option_env!("VITE_INVITE_ONLY") == Some("true") {
+        LOCKED.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
 
     let app = tauri::Builder::default()
         // Nur eine Instanz: ein zweiter Start holt das vorhandene Fenster nach vorne.
@@ -98,6 +112,7 @@ pub fn run() {
             commands::system::get_autostart,
             commands::system::set_autostart,
             commands::system::apply_overlay,
+            commands::system::set_locked,
             commands::telemetry::start_fps_capture,
             commands::telemetry::stop_fps_capture,
             commands::telemetry::start_measurement,

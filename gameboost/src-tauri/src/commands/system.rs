@@ -77,3 +77,9 @@ pub fn set_autostart(enabled: bool) -> Result<(), String> {
 pub fn apply_overlay(app: tauri::AppHandle) -> Result<(), String> {
     crate::overlay::apply(&app)
 }
+
+/// Sperrt Hintergrundfunktionen (Tray-Boost, Auto-Boost), solange niemand angemeldet ist.
+#[tauri::command]
+pub fn set_locked(locked: bool) {
+    crate::LOCKED.store(locked, std::sync::atomic::Ordering::SeqCst);
+}

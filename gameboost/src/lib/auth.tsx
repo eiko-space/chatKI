@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import type { Session as AuthSession, SupabaseClient } from "@supabase/supabase-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { authError, getSupabase, supabaseConfigured } from "./supabase";
+import { authError, getSupabase, inviteOnly, supabaseConfigured } from "./supabase";
 import { pullOrPushSettings, pushSettings, syncSessions } from "./sync";
 import { isTauri } from "./tauri";
 
@@ -10,6 +10,7 @@ export type Plan = "free" | "pro";
 
 interface AuthState {
   configured: boolean;
+  inviteOnly: boolean;
   ready: boolean;
   session: AuthSession | null;
   plan: Plan;
@@ -19,7 +20,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<"confirm" | "done">;
   signInWithProvider: (provider: "discord" | "google") => Promise<void>;
-  verifyCode: (email: string, code: string, type: "signup" | "recovery") => Promise<void>;
+  verifyCode: (email: string, code: string, type: "signup" | "recovery" | "invite") => Promise<void>;
   sendReset: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -115,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value: AuthState = {
     configured: supabaseConfigured,
+    inviteOnly,
     ready,
     session,
     plan,

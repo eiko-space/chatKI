@@ -17,6 +17,11 @@ jobs:
     defaults:
       run:
         working-directory: gameboost
+    # Optional: Konto-Funktion und Einladungs-Modus (Repository → Settings → Secrets and variables → Actions)
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      VITE_INVITE_ONLY: ${{ vars.VITE_INVITE_ONLY }}
     steps:
       - uses: actions/checkout@v4
 

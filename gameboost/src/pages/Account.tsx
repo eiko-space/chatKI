@@ -7,7 +7,7 @@ import { Button } from "../components/ui/Button";
 import { Details } from "../components/ui/Details";
 import { useAuth } from "../lib/auth";
 
-type View = "login" | "register" | "confirm" | "forgot" | "reset";
+type View = "login" | "register" | "confirm" | "forgot" | "reset" | "invite";
 
 function Field(props: { label: string; type?: string; value: string; onChange: (v: string) => void; autoComplete?: string; inputMode?: "numeric" }) {
   return (
@@ -45,7 +45,7 @@ function GoogleIcon() {
   );
 }
 
-export default function Account() {
+export default function Account({ gate = false }: { gate?: boolean }) {
   const auth = useAuth();
   const [view, setView] = useState<View>("login");
   const [email, setEmail] = useState("");
@@ -150,8 +150,8 @@ export default function Account() {
   }
 
   const Tabs = (
-    <div className="mb-5 grid grid-cols-2 rounded-lg bg-surface-2 p-1 text-sm">
-      {(["login", "register"] as const).map((v) => (
+    <div className={`mb-5 grid rounded-lg bg-surface-2 p-1 text-sm ${auth.inviteOnly ? "grid-cols-1" : "grid-cols-2"}`}>
+      {(auth.inviteOnly ? (["login"] as const) : (["login", "register"] as const)).map((v) => (
         <button
           key={v}
           onClick={() => { setView(v); setMsg(null); }}
@@ -171,7 +171,12 @@ export default function Account() {
           <Field label="E-Mail" type="email" value={email} onChange={setEmail} autoComplete="email" />
           <Field label="Passwort" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
           <Button type="submit" variant="primary" className="w-full" disabled={busy}>{busy ? "Bitte warten …" : "Anmelden"}</Button>
-          <button type="button" className="text-xs text-muted hover:text-text" onClick={() => { setView("forgot"); setMsg(null); }}>Passwort vergessen?</button>
+          <div className="flex flex-wrap justify-between gap-2">
+            <button type="button" className="text-xs text-muted hover:text-text" onClick={() => { setView("forgot"); setMsg(null); }}>Passwort vergessen?</button>
+            {auth.inviteOnly && (
+              <button type="button" className="text-xs text-accent hover:underline" onClick={() => { setView("invite"); setMsg(null); }}>Ich habe eine Einladung</button>
+            )}
+          </div>
         </form>
       );
       break;
@@ -214,6 +219,21 @@ export default function Account() {
         </form>
       );
       break;
+    case "invite":
+      form = (
+        <form className="space-y-3" onSubmit={submit(async () => {
+          await auth.verifyCode(email, code, "invite");
+          await auth.updatePassword(password);
+        })}>
+          <p className="text-sm text-muted">Gib die E-Mail ein, an die deine Einladung ging, den Code aus der E-Mail und dein neues Passwort.</p>
+          <Field label="E-Mail" type="email" value={email} onChange={setEmail} autoComplete="email" />
+          <Field label="Code aus der Einladung" value={code} onChange={setCode} inputMode="numeric" autoComplete="one-time-code" />
+          <Field label="Dein Passwort (mind. 8 Zeichen)" type="password" value={password} onChange={setPassword} autoComplete="new-password" />
+          <Button type="submit" variant="primary" className="w-full" disabled={busy || password.length < 8}>Einladung annehmen</Button>
+          <button type="button" className="text-xs text-muted hover:text-text" onClick={() => setView("login")}>Zurück zum Anmelden</button>
+        </form>
+      );
+      break;
     case "reset":
       form = (
         <form className="space-y-3" onSubmit={submit(async () => {
@@ -230,14 +250,22 @@ export default function Account() {
 
   return (
     <>
-      <PageHeader title="Konto" description="Ein Konto ist optional. Damit synchronisierst du Einstellungen, Profile und Messungen über mehrere PCs." />
-      <div className="grid gap-4 md:grid-cols-2">
+      {gate ? (
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">Willkommen bei GameBoost</h1>
+          <p className="mt-1 text-sm text-muted">Diese App ist nur für eingeladene Personen. Bitte melde dich an.</p>
+        </div>
+      ) : (
+        <PageHeader title="Konto" description="Ein Konto ist optional. Damit synchronisierst du Einstellungen, Profile und Messungen über mehrere PCs." />
+      )}
+      <div className={gate ? "mx-auto max-w-md" : "grid gap-4 md:grid-cols-2"}>
         <Card>
           {(view === "login" || view === "register") && Tabs}
           {form}
           {msg && <p className={`mt-3 text-sm ${msg.ok ? "text-good" : "text-bad"}`}>{msg.text}</p>}
           {(view === "login" || view === "register") && (
             <>
+              {auth.inviteOnly && <p className="mt-4 text-[11px] text-faint">Discord/Google funktionieren nur, wenn für deine E-Mail bereits ein Konto angelegt wurde.</p>}
               <div className="my-5 flex items-center gap-3 text-xs text-faint"><span className="h-px flex-1 bg-line" /> oder <span className="h-px flex-1 bg-line" /></div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button onClick={() => run(() => auth.signInWithProvider("discord"))} disabled={busy}><DiscordIcon /> Mit Discord</Button>
@@ -247,7 +275,7 @@ export default function Account() {
             </>
           )}
         </Card>
-        {guestCard}
+        {!auth.inviteOnly && guestCard}
       </div>
     </>
   );

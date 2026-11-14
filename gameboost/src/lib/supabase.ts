@@ -8,6 +8,12 @@ const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 /** Ist ein Supabase-Projekt eingetragen? Sonst läuft die App im Gast-Modus. */
 export const supabaseConfigured = Boolean(URL && KEY && !URL.includes("DEIN-PROJEKT"));
 
+/**
+ * „Nur mit Einladung“: Die App ist nur nach Anmeldung nutzbar, Registrieren ist ausgeblendet.
+ * Konten legt nur der Besitzer im Supabase-Dashboard an (Neue Registrierungen dort abschalten!).
+ */
+export const inviteOnly = supabaseConfigured && import.meta.env.VITE_INVITE_ONLY === "true";
+
 /** Speichert Anmelde-Tokens in der Windows-Anmeldeinformationsverwaltung statt im Browser-Speicher. */
 const secureStorage = {
   getItem: async (k: string) => (isTauri() ? invoke<string | null>("secure_get", { k: sanitize(k) }) : null),
