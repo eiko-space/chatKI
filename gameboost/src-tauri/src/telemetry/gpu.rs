@@ -205,7 +205,8 @@ mod platform {
                 name: if name.is_empty() { "Grafikkarte".into() } else { name },
                 vram_total: vram,
             };
-            let software = candidate.name.contains("Microsoft Basic");
+            // Software-Renderer und Adapter ohne eigenen Videospeicher sind keine Spiele-GPU.
+            let software = candidate.name.contains("Microsoft Basic") || candidate.vram_total == 0;
             if !software && best.as_ref().is_none_or(|b| candidate.vram_total > b.vram_total) {
                 if let Some(old) = best.replace(candidate) {
                     close(old.handle);

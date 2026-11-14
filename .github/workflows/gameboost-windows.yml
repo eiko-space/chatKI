@@ -44,7 +44,7 @@ jobs:
 
       - name: Rust-Tests (inkl. Windows-API-Tests)
         working-directory: gameboost/src-tauri
-        run: cargo test --lib -- --nocapture
+        run: cargo test --lib -- --include-ignored --nocapture
 
       - name: Installer bauen
         run: npm run build:installer

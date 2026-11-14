@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BoostControl } from "../components/BoostControl";
 import { AlertTriangle, Cpu, Gamepad2, Loader2, Play, ShieldCheck, Square, Wifi, WifiOff } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Metric } from "../components/ui/Metric";
@@ -7,7 +8,6 @@ import { Button } from "../components/ui/Button";
 import { Details } from "../components/ui/Details";
 import { Dialog } from "../components/ui/Dialog";
 import { PageHeader } from "../components/ui/PageHeader";
-import { BoostButton } from "../components/ui/BoostButton";
 import { UsageBar } from "../components/ui/UsageBar";
 import { FrametimeChart } from "../components/ui/FrametimeChart";
 import { isTauri, restartAsAdmin, startFpsCapture, stopFpsCapture, type AppInfo } from "../lib/tauri";
@@ -16,7 +16,6 @@ import { num } from "../lib/format";
 
 export default function Dashboard({ info }: { info: AppInfo | null }) {
   const { snapshot } = useTelemetry();
-  const [notice, setNotice] = useState(false);
   const fps = snapshot?.fps ?? null;
 
   return (
@@ -35,12 +34,7 @@ export default function Dashboard({ info }: { info: AppInfo | null }) {
 
       <div className="grid grid-cols-12 gap-4">
         <Card className="col-span-12 flex flex-col items-center justify-center py-8 xl:col-span-4">
-          <BoostButton active={false} onClick={() => setNotice(true)} />
-          <p className="mt-5 max-w-xs text-center text-sm text-muted">
-            {notice
-              ? "Boost-Funktionen werden in Phase 3 freigeschaltet – inklusive Wiederherstellungspunkt und Rückgängig-Funktion."
-              : "Ein Klick optimiert Windows fürs Spielen. Alles lässt sich vollständig rückgängig machen."}
-          </p>
+          <BoostControl info={info} />
         </Card>
 
         <FpsCard info={info} snapshot={snapshot} />

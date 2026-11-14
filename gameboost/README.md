@@ -56,7 +56,7 @@ src-tauri/              Rust-Backend
 
 1. ✅ Grundgerüst, Design-System, Navigation, Tray
 2. ✅ Live-Dashboard mit echten Messwerten
-3. Boost-Funktionen + Rückgängig-System + Wiederherstellungspunkt
+3. ✅ Boost-Funktionen + Rückgängig-System + Wiederherstellungspunkt
 4. Vorher-/Nachher-Messung
 5. Netzwerk-Tools und PC-Check
 6. Login (Supabase) + Cloud-Sync

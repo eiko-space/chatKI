@@ -1,6 +1,6 @@
 [package]
 name = "gameboost"
-version = "0.2.0"
+version = "0.3.0"
 description = "GameBoost – ehrliche PC-Gaming-Optimierung für Windows"
 edition = "2021"
 rust-version = "1.82"
@@ -20,9 +20,20 @@ serde_json = "1"
 os_info = { version = "3", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
+winreg = "0.55"
 windows-sys = { version = "0.59", features = [
   "Wdk_Graphics_Direct3D",
   "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_NetworkManagement_WiFi",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Power",
+  "Win32_System_ProcessStatus",
+  "Win32_System_RemoteDesktop",
+  "Win32_System_Restore",
+  "Win32_System_Services",
   "Win32_NetworkManagement_IpHelper",
   "Win32_NetworkManagement_Ndis",
   "Win32_Networking_WinSock",
