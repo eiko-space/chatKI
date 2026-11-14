@@ -33,7 +33,7 @@ export default function App() {
             <Route path="/" element={<Dashboard info={info} />} />
             <Route path="/boost" element={<Boost info={info} />} />
             <Route path="/netzwerk" element={<Network />} />
-            <Route path="/pc-check" element={<PcCheck />} />
+            <Route path="/pc-check" element={<PcCheck info={info} />} />
             <Route path="/verlauf" element={<HistoryPage />} />
             <Route path="/profile" element={<Profiles />} />
             <Route path="/einstellungen" element={<SettingsPage info={info} />} />

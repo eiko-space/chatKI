@@ -4,6 +4,8 @@ mod boost;
 mod commands;
 mod elevation;
 mod games;
+mod netdiag;
+mod pccheck;
 mod sessions;
 mod settings;
 mod storage;
@@ -89,6 +91,11 @@ pub fn run() {
             commands::boost::get_settings,
             commands::boost::save_settings,
             commands::boost::set_fullscreen_optimizations,
+            commands::tools::region_ping,
+            commands::tools::traceroute,
+            commands::tools::net_apps,
+            commands::tools::run_pc_check,
+            commands::tools::run_pc_fix,
         ])
         .build(tauri::generate_context!())
         .expect("GameBoost konnte nicht gestartet werden");

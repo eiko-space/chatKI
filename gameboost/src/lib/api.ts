@@ -131,3 +131,65 @@ export const measureApi = {
   saveSession: (session: Session) => invoke<void>("save_session", { session }),
   deleteSession: (id: string) => invoke<void>("delete_session", { id }),
 };
+
+export interface RegionResult {
+  id: string;
+  city: string;
+  area: string;
+  host: string;
+  minMs: number | null;
+  medianMs: number | null;
+  jitterMs: number | null;
+  failed: number;
+  attempts: number;
+}
+
+export interface Hop {
+  hop: number;
+  address: string | null;
+  kind: "home" | "isp" | "internet" | "target" | "unknown";
+  bestMs: number | null;
+  avgMs: number | null;
+  worstMs: number | null;
+  lossPercent: number;
+}
+
+export interface TraceResult {
+  target: string;
+  resolved: string | null;
+  hops: Hop[];
+  reached: boolean;
+  analysis: string[];
+}
+
+export interface NetApp {
+  exe: string;
+  connections: number;
+}
+
+export type CheckLevel = "good" | "warn" | "bad" | "info";
+
+export interface CheckItem {
+  id: string;
+  title: string;
+  level: CheckLevel;
+  value: string;
+  explanation: string;
+  details: string | null;
+  fix: string | null;
+  fixLabel: string | null;
+  fixNeedsAdmin: boolean;
+}
+
+export interface CheckReport {
+  score: number;
+  items: CheckItem[];
+}
+
+export const toolsApi = {
+  regionPing: () => invoke<RegionResult[]>("region_ping"),
+  traceroute: (target: string) => invoke<TraceResult>("traceroute", { target }),
+  netApps: () => invoke<NetApp[]>("net_apps"),
+  pcCheck: () => invoke<CheckReport>("run_pc_check"),
+  pcFix: (id: string) => invoke<string>("run_pc_fix", { id }),
+};

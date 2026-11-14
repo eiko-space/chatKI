@@ -58,6 +58,6 @@ src-tauri/              Rust-Backend
 2. ✅ Live-Dashboard mit echten Messwerten
 3. ✅ Boost-Funktionen + Rückgängig-System + Wiederherstellungspunkt
 4. ✅ Vorher-/Nachher-Messung
-5. Netzwerk-Tools und PC-Check
+5. ✅ Netzwerk-Tools und PC-Check
 6. Login (Supabase) + Cloud-Sync
 7. Overlay, Auto-Boost, Installer
