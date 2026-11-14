@@ -20,6 +20,8 @@ pub fn start<R: Runtime>(app: AppHandle<R>) {
         .name("watcher".into())
         .spawn(move || {
             let mut auto_started = false;
+            let mut was_active = false;
+            let mut last_purge: Option<Instant> = None;
             // Hat der Nutzer den Auto-Boost für dieses Spiel von Hand beendet? Dann bis Spielende nicht erneut starten.
             let mut stopped_by_user: Option<u32> = None;
             let mut last_temp: Option<Instant> = None;
@@ -49,11 +51,13 @@ pub fn start<R: Runtime>(app: AppHandle<R>) {
                 if game.is_none() {
                     stopped_by_user = None;
                 }
-                if auto_started && !active {
-                    // Boost lief automatisch, ist jetzt aber aus → der Nutzer hat ihn beendet.
+                if was_active && !active {
+                    // Boost lief (egal ob automatisch oder per Knopf) und ist jetzt aus → der Nutzer hat ihn beendet.
+                    // Für dieses Spiel nicht erneut automatisch starten.
                     auto_started = false;
                     stopped_by_user = game.as_ref().map(|g| g.pid);
                 }
+                was_active = active;
                 if settings.auto_boost {
                     match (&game, active) {
                         (Some(g), false) if stopped_by_user != Some(g.pid) => {
@@ -73,6 +77,19 @@ pub fn start<R: Runtime>(app: AppHandle<R>) {
                             }
                         }
                         _ => {}
+                    }
+                }
+
+                // ---------------- RAM-Wächter: Standby-Speicher leeren, wenn freier RAM knapp wird
+                let ram_guard = settings.enabled_tweaks.iter().any(|t| t == "standby_list");
+                if active && ram_guard && crate::elevation::is_elevated() && last_purge.is_none_or(|t| t.elapsed() > Duration::from_secs(30)) {
+                    if let Some((free_gb, standby_gb)) = crate::boost::tweaks::memory_status() {
+                        if free_gb < 1.0 && standby_gb > 1.0 {
+                            if let Ok((msg, _)) = crate::boost::tweaks::purge_standby_list() {
+                                app.state::<BoostEngine>().log("ram_guard", "RAM-Wächter", "applied", &msg);
+                            }
+                            last_purge = Some(Instant::now());
+                        }
                     }
                 }
 

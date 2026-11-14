@@ -36,11 +36,52 @@ mod imp {
         RegKey::predef(HKEY_CURRENT_USER).create_subkey(DX).map(|(k, _)| k).map_err(|e| e.to_string())
     }
 
+    const IFEO: &str = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options";
+
+    /// Spiele-Programme, die beim Start hohe CPU-/Festplatten-Priorität bekommen (ohne javaw.exe – das wäre jedes Java-Programm).
+    fn priority_exes() -> Vec<&'static str> {
+        crate::games::KNOWN_GAMES.iter().flat_map(|g| g.exes.iter().copied()).filter(|e| !e.eq_ignore_ascii_case("javaw.exe")).collect()
+    }
+
+    fn priority_enabled() -> bool {
+        use winreg::enums::HKEY_LOCAL_MACHINE;
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        priority_exes().iter().all(|e| {
+            hklm.open_subkey(format!(r"{IFEO}\{e}\PerfOptions")).ok().and_then(|k| k.get_value::<u32, _>("CpuPriorityClass").ok()) == Some(3)
+        })
+    }
+
+    fn set_priority(on: bool) -> Result<String, String> {
+        use winreg::enums::HKEY_LOCAL_MACHINE;
+        if !crate::elevation::is_elevated() {
+            return Err("Benötigt Administratorrechte.".into());
+        }
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        for e in priority_exes() {
+            let path = format!(r"{IFEO}\{e}\PerfOptions");
+            if on {
+                let (k, _) = hklm.create_subkey(&path).map_err(|e| e.to_string())?;
+                k.set_value("CpuPriorityClass", &3u32).map_err(|e| e.to_string())?; // 3 = Hoch
+                k.set_value("IoPriority", &3u32).map_err(|e| e.to_string())?; // 3 = Hoch (Festplatte)
+            } else {
+                let _ = hklm.delete_subkey(&path);
+            }
+        }
+        Ok(if on { "Eingeschaltet – deine Spiele starten ab jetzt immer mit hoher CPU- und Festplatten-Priorität.".into() } else { "Ausgeschaltet.".into() })
+    }
+
     pub fn status(game_paths: &[String]) -> Vec<PermanentItem> {
         let k = key().ok();
         let global: String = k.as_ref().and_then(|k| k.get_value(GLOBAL).ok()).unwrap_or_default();
         let gpu_set = game_paths.iter().filter(|p| k.as_ref().and_then(|k| k.get_value::<String, _>(p.as_str()).ok()).is_some_and(|v| dx_option(&v, "GpuPreference").as_deref() == Some("2"))).count();
         vec![
+            PermanentItem {
+                id: "start_priority",
+                title: "Spiele starten mit hoher Priorität",
+                summary: "Hohe CPU- und Festplatten-Priorität ab Spielstart – weniger Nachlade-Ruckler (z. B. in Fortnite Creative). Braucht Admin-Rechte.".into(),
+                enabled: priority_enabled(),
+                available: crate::elevation::is_elevated() || priority_enabled(),
+            },
             PermanentItem {
                 id: "windowed_flip",
                 title: "Optimierungen für Spiele im Fenstermodus",
@@ -65,6 +106,7 @@ mod imp {
     pub fn set(id: &str, on: bool, game_paths: &[String]) -> Result<String, String> {
         let k = key()?;
         match id {
+            "start_priority" => set_priority(on),
             "windowed_flip" => {
                 let cur: String = k.get_value(GLOBAL).unwrap_or_default();
                 k.set_value(GLOBAL, &set_dx_option(&cur, "SwapEffectUpgradeEnable", if on { "1" } else { "0" })).map_err(|e| e.to_string())?;

@@ -176,3 +176,21 @@ pub fn cpu_time(pid: u32) -> Option<u64> {
     let ft = |f: FILETIME| ((f.dwHighDateTime as u64) << 32) | f.dwLowDateTime as u64;
     Some(ft(k) + ft(u))
 }
+
+/// GPU-Planungspriorität (Windows-Grafikkernel) lesen.
+pub fn get_gpu_priority(pid: u32) -> Option<i32> {
+    use windows_sys::Wdk::Graphics::Direct3D::D3DKMTGetProcessSchedulingPriorityClass;
+    let h = open(pid, PROCESS_QUERY_LIMITED_INFORMATION)?;
+    let mut c = 0i32;
+    // SAFETY: gültiges Handle, Ausgabezeiger gültig.
+    (unsafe { D3DKMTGetProcessSchedulingPriorityClass(h.0, &mut c) } >= 0).then_some(c)
+}
+
+/// GPU-Planungspriorität setzen (2 = normal, 4 = hoch).
+pub fn set_gpu_priority(pid: u32, class: i32) -> Result<(), String> {
+    use windows_sys::Wdk::Graphics::Direct3D::D3DKMTSetProcessSchedulingPriorityClass;
+    let h = open(pid, PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION).ok_or_else(|| os_err("Prozess erlaubt keine Änderung"))?;
+    // SAFETY: gültiges Handle und gültige Prioritätsklasse.
+    let st = unsafe { D3DKMTSetProcessSchedulingPriorityClass(h.0, class) };
+    if st >= 0 { Ok(()) } else { Err(format!("GPU-Priorität nicht änderbar (Status 0x{st:08X})")) }
+}

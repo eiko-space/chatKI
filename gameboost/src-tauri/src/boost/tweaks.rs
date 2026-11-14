@@ -23,6 +23,7 @@ mod stub {
     pub fn stop_update_services() -> Applied { Err(NA.into()) }
     pub fn wlan_low_latency() -> Applied { Err(NA.into()) }
     pub fn purge_standby_list() -> Applied { Err(NA.into()) }
+    pub fn memory_status() -> Option<(f64, f64)> { None }
     pub fn device_power() -> Applied { Err(NA.into()) }
     pub fn cpu_full() -> Applied { Err(NA.into()) }
     pub fn background_priority(_mic: &[String]) -> Applied { Err(NA.into()) }
@@ -103,6 +104,13 @@ mod imp {
             process::set_priority(pid, process::PRIORITY_HIGH)?;
             parts.push(Revert::Priority { pid, exe: exe.into(), previous });
             done.push("hohe Priorität");
+        }
+        // Auch auf der Grafikkarte bevorzugen (Windows-Grafikplaner)
+        if let Some(prev_gpu) = process::get_gpu_priority(pid) {
+            if prev_gpu < 4 && process::set_gpu_priority(pid, 4).is_ok() {
+                parts.push(Revert::GpuPriority { pid, exe: exe.into(), previous: prev_gpu });
+                done.push("hohe GPU-Priorität");
+            }
         }
         // Windows soll das Spiel nie zum Stromsparen drosseln (wichtig bei CPUs mit P- und E-Kernen)
         if process::set_power_throttling_off(pid, true).is_ok() {
@@ -432,6 +440,12 @@ mod imp {
         (st >= 0).then_some(info)
     }
 
+    /// (freier RAM in GB, Standby-Speicher in GB)
+    pub fn memory_status() -> Option<(f64, f64)> {
+        let gb = |pages: usize| pages as f64 * 4096.0 / 1024f64.powi(3);
+        memory_lists().map(|m| (gb(m.free + m.zero), gb(m.standby_by_priority.iter().sum())))
+    }
+
     pub fn purge_standby_list() -> Applied {
         if !enable_privilege("SeProfileSingleProcessPrivilege") {
             return Err("Benötigt Administratorrechte.".into());
@@ -693,6 +707,12 @@ mod imp {
                     }
                 }
                 if errs.is_empty() { Ok(ok.join(" ")) } else { Err(errs.join("; ")) }
+            }
+            Revert::GpuPriority { pid, exe, previous } => {
+                if process::list().into_iter().any(|p| p.pid == *pid && p.name.eq_ignore_ascii_case(exe)) {
+                    let _ = process::set_gpu_priority(*pid, *previous);
+                }
+                Ok("GPU-Priorität zurückgesetzt.".into())
             }
             Revert::PowerThrottle { pid, exe } => {
                 if process::list().into_iter().any(|p| p.pid == *pid && p.name.eq_ignore_ascii_case(exe)) {

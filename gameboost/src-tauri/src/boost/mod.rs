@@ -48,6 +48,8 @@ pub enum Revert {
     /// Energiespar-Werte im Energieplan: (Untergruppe, Einstellung, Netz, Akku)
     DevicePower { scheme: String, values: Vec<(String, String, u32, u32)> },
     StickyKeys { flags: u32 },
+    /// GPU-Planungspriorität eines Prozesses
+    GpuPriority { pid: u32, exe: String, previous: i32 },
     /// Energiespar-Drosselung eines Prozesses wieder Windows überlassen
     PowerThrottle { pid: u32, exe: String },
     /// Prioritäten mehrerer Prozesse: (PID, Name, vorherige Priorität)
@@ -89,7 +91,7 @@ pub fn catalog() -> &'static [TweakInfo] {
         },
         TweakInfo {
             id: "game_priority", title: "Spiel bevorzugen", category: "fps", needs_admin: false, default_on: true, one_shot: false,
-            summary: "Hohe Priorität fürs Spiel, keine Energiespar-Drosselung.",
+            summary: "Hohe CPU- und GPU-Priorität fürs Spiel, keine Energiespar-Drosselung.",
             details: "Setzt nur die Prozess-Priorität des laufenden Spiels auf „Hoch“ – wie im Task-Manager. Kein Eingriff in den Spielprozess. Manche Anti-Cheat-Systeme verbieten das; dann wird es übersprungen. Bringt am meisten, wenn die CPU stark ausgelastet ist.",
         },
         TweakInfo {
@@ -133,8 +135,8 @@ pub fn catalog() -> &'static [TweakInfo] {
             details: "Blendet Windows-Benachrichtigungen aus und deaktiviert das Tastenkürzel für die Einrastfunktion (5× Shift), das sonst mitten im Spiel ein Fenster öffnet.",
         },
         TweakInfo {
-            id: "standby_list", title: "Standby-Speicher leeren", category: "fps", needs_admin: true, default_on: false, one_shot: true,
-            summary: "Gibt zwischengespeicherten RAM frei. Hilft nur bei knappem RAM.",
+            id: "standby_list", title: "RAM-Wächter", category: "fps", needs_admin: true, default_on: true, one_shot: true,
+            summary: "Leert den Standby-Speicher, sobald freier RAM knapp wird – auch mitten im Spiel.",
             details: "Leert einmalig die Standby-Liste des Arbeitsspeichers (wie „RAMMap“ oder „ISLC“). Das hilft nur, wenn dein freier Arbeitsspeicher knapp ist – sonst bringt es nichts. Die App zeigt dir danach die echten Werte vorher/nachher.",
         },
         TweakInfo {

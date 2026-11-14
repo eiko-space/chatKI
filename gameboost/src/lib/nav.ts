@@ -1,5 +1,5 @@
 import {
-  Activity, Gauge, Wifi, ShieldCheck, History, Gamepad2, Settings, UserRound, Eye, Wrench,
+  Activity, Gauge, Wifi, ShieldCheck, History, Gamepad2, Settings, UserRound, Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -12,7 +12,6 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { path: "/", label: "Dashboard", icon: Activity },
   { path: "/boost", label: "Boost", icon: Gauge },
-  { path: "/vorteile", label: "Vorteile", icon: Eye },
   { path: "/netzwerk", label: "Netzwerk", icon: Wifi },
   { path: "/pc-check", label: "PC-Check", icon: ShieldCheck },
   { path: "/werkzeuge", label: "Werkzeuge", icon: Wrench },
