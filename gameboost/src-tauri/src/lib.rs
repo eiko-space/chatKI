@@ -136,6 +136,10 @@ pub fn run() {
             if let Some(hub) = app.try_state::<Arc<Hub>>() {
                 hub.stop_capture();
             }
+            // Läuft beim Beenden noch ein Boost, wird alles zurückgesetzt – nichts bleibt verändert.
+            if app.try_state::<BoostEngine>().is_some_and(|e| e.status().active) {
+                revert_now(app);
+            }
         }
     });
 }

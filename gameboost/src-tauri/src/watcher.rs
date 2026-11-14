@@ -20,6 +20,8 @@ pub fn start<R: Runtime>(app: AppHandle<R>) {
         .name("watcher".into())
         .spawn(move || {
             let mut auto_started = false;
+            // Hat der Nutzer den Auto-Boost für dieses Spiel von Hand beendet? Dann bis Spielende nicht erneut starten.
+            let mut stopped_by_user: Option<u32> = None;
             let mut last_temp: Option<Instant> = None;
             let mut last_ping: Option<Instant> = None;
             loop {
@@ -44,9 +46,17 @@ pub fn start<R: Runtime>(app: AppHandle<R>) {
 
                 // ---------------- Auto-Boost
                 let active = app.state::<BoostEngine>().status().active;
+                if game.is_none() {
+                    stopped_by_user = None;
+                }
+                if auto_started && !active {
+                    // Boost lief automatisch, ist jetzt aber aus → der Nutzer hat ihn beendet.
+                    auto_started = false;
+                    stopped_by_user = game.as_ref().map(|g| g.pid);
+                }
                 if settings.auto_boost {
                     match (&game, active) {
-                        (Some(g), false) => {
+                        (Some(g), false) if stopped_by_user != Some(g.pid) => {
                             let name = g.name.clone();
                             if crate::boost_now(&app).is_ok() {
                                 auto_started = true;
@@ -64,8 +74,6 @@ pub fn start<R: Runtime>(app: AppHandle<R>) {
                         }
                         _ => {}
                     }
-                } else if !active {
-                    auto_started = false;
                 }
 
                 // ---------------- Benachrichtigungen
