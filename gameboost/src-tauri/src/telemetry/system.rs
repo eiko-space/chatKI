@@ -130,3 +130,28 @@ mod platform {
         }
     }
 }
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::Sampler;
+
+    #[test]
+    fn reads_cpu_and_ram() {
+        let mut s = Sampler::default();
+        s.system();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let st = s.system();
+        println!("{st:?}");
+        assert!(st.cpu_usage.is_some_and(|v| (0.0..=100.0).contains(&v)));
+        assert!(st.ram_total_gb.is_some_and(|v| v > 0.5));
+        assert!(st.ram_usage.is_some_and(|v| v > 0.0 && v <= 100.0));
+    }
+
+    #[test]
+    fn reads_link() {
+        let mut s = Sampler::default();
+        s.link();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        println!("{:?}", s.link());
+    }
+}

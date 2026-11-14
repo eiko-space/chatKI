@@ -252,3 +252,13 @@ mod tests {
         assert_eq!(luid_of("_Total"), None);
     }
 }
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    #[test]
+    fn gpu_sampler_does_not_crash() {
+        let mut g = super::GpuSampler::new();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        println!("{:?}", g.sample());
+    }
+}

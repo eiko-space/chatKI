@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "resources": {
+      "bin/PresentMon.exe": "bin/PresentMon.exe",
+      "bin/PresentMon-LICENSE.txt": "bin/PresentMon-LICENSE.txt"
+    }
+  }
+}

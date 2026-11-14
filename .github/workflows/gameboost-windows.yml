@@ -1,0 +1,59 @@
+name: GameBoost (Windows)
+
+on:
+  push:
+    branches: [ccr-0a3eda02-oqrmav]
+    paths: ["gameboost/**", ".github/workflows/gameboost-windows.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: gameboost-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: gameboost
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gameboost/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: gameboost/src-tauri
+
+      - name: Abhängigkeiten installieren (lädt auch PresentMon)
+        run: npm ci
+
+      - name: PresentMon vorhanden?
+        shell: bash
+        run: test -f src-tauri/bin/PresentMon.exe
+
+      - name: TypeScript prüfen
+        run: npx tsc -b
+
+      - name: Rust-Tests (inkl. Windows-API-Tests)
+        working-directory: gameboost/src-tauri
+        run: cargo test --lib -- --nocapture
+
+      - name: Installer bauen
+        run: npm run build:installer
+
+      - name: Installer hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameBoost-Installer
+          path: |
+            gameboost/src-tauri/target/release/bundle/nsis/*.exe
+            gameboost/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error

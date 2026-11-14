@@ -256,3 +256,14 @@ mod tests {
         assert_eq!(st.loss_percent, None);
     }
 }
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    #[test]
+    fn pings_loopback() {
+        let p = super::platform::Pinger::new().expect("ICMP-Handle");
+        let rtt = p.ping(std::net::Ipv4Addr::LOCALHOST, 1000);
+        println!("loopback rtt: {rtt:?}, gateway: {:?}", super::platform::default_gateway());
+        assert!(rtt.is_some());
+    }
+}
