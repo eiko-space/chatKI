@@ -8,6 +8,7 @@ pub struct AppInfo {
     os_version: String,
     arch: String,
     is_elevated: bool,
+    is_dev: bool,
 }
 
 /// Liefert echte Basisinformationen über App und System.
@@ -19,19 +20,15 @@ pub fn get_app_info(app: tauri::AppHandle) -> AppInfo {
         os: info.os_type().to_string(),
         os_version: info.version().to_string(),
         arch: std::env::consts::ARCH.to_string(),
-        is_elevated: is_elevated(),
+        is_elevated: crate::elevation::is_elevated(),
+        is_dev: cfg!(debug_assertions),
     }
 }
 
-/// Läuft der Prozess mit Administratorrechten?
-/// Die App startet bewusst OHNE Admin-Rechte und fragt erst bei Bedarf (ab Phase 3).
-#[cfg(windows)]
-fn is_elevated() -> bool {
-    // SAFETY: IsUserAnAdmin hat keine Parameter und keine Vorbedingungen.
-    unsafe { windows_sys::Win32::UI::Shell::IsUserAnAdmin() != 0 }
-}
-
-#[cfg(not(windows))]
-fn is_elevated() -> bool {
-    false
+/// Startet die App mit Admin-Rechten neu (nur nach ausdrücklicher Bestätigung in der Oberfläche).
+#[tauri::command]
+pub fn restart_as_admin(app: tauri::AppHandle) -> Result<(), String> {
+    crate::elevation::relaunch_elevated()?;
+    app.exit(0);
+    Ok(())
 }

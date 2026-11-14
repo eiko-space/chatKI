@@ -13,7 +13,11 @@ export default function SettingsPage({ info }: { info: AppInfo | null }) {
             Beim Schließen des Fensters läuft GameBoost im System-Tray weiter. Über das Tray-Symbol
             kannst du die App wieder öffnen oder ganz beenden.
           </p>
-          {info && <p className="mt-3 text-xs text-faint">Version {info.version} · {info.os} {info.osVersion}</p>}
+          {info && (
+            <p className="mt-3 text-xs text-faint">
+              Version {info.version} · {info.os} {info.osVersion} · Admin-Rechte: {info.isElevated ? "ja" : "nein"}
+            </p>
+          )}
         </Card>
         <Planned phase={7} title="Später" items={["In-Game-Overlay (Position, Größe, Hotkey)", "Benachrichtigungen bei Überhitzung oder Ping-Spike", "Automatische Updates", "Mit Windows starten"]} />
       </div>

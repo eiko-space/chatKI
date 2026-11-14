@@ -10,6 +10,7 @@ export interface AppInfo {
   osVersion: string;
   arch: string;
   isElevated: boolean;
+  isDev: boolean;
 }
 
 /**
@@ -20,3 +21,7 @@ export async function getAppInfo(): Promise<AppInfo | null> {
   if (!isTauri()) return null;
   return invoke<AppInfo>("get_app_info");
 }
+
+export const startFpsCapture = () => invoke<void>("start_fps_capture");
+export const stopFpsCapture = () => invoke<void>("stop_fps_capture");
+export const restartAsAdmin = () => invoke<void>("restart_as_admin");

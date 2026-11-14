@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Route, Routes } from "react-router";
 import { Sidebar } from "./components/layout/Sidebar";
 import { getAppInfo, type AppInfo } from "./lib/tauri";
+import { TelemetryProvider } from "./lib/telemetry";
 import Dashboard from "./pages/Dashboard";
 import Boost from "./pages/Boost";
 import Network from "./pages/Network";
@@ -19,6 +20,7 @@ export default function App() {
   }, []);
 
   return (
+    <TelemetryProvider>
     <div className="flex h-full">
       <Sidebar version={info?.version ?? null} />
       <main className="flex-1 overflow-y-auto">
@@ -36,5 +38,6 @@ export default function App() {
         </div>
       </main>
     </div>
+    </TelemetryProvider>
   );
 }
