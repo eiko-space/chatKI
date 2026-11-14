@@ -68,6 +68,8 @@ pub struct Settings {
     pub restore_point_created_at: Option<u64>,
     /// Hat der Nutzer den Hinweis vor dem ersten Boost bestätigt?
     pub first_boost_confirmed: bool,
+    /// Tastenkürzel: Boost an/aus (leer = aus)
+    pub boost_hotkey: String,
 }
 
 impl Default for Settings {
@@ -89,6 +91,7 @@ impl Default for Settings {
             overlay: OverlaySettings::default(),
             restore_point_created_at: None,
             first_boost_confirmed: false,
+            boost_hotkey: "Ctrl+Shift+B".into(),
         }
     }
 }

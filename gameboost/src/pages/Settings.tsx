@@ -108,6 +108,25 @@ export default function SettingsPage({ info }: { info: AppInfo | null }) {
             <Row label="Auto-Boost" hint="Boost automatisch beim Spielstart, Zurücksetzen danach">
               <Toggle label="Auto-Boost" checked={settings?.autoBoost ?? false} disabled={!settings} onChange={(v) => updateSettings((s) => ({ ...s, autoBoost: v }))} />
             </Row>
+            <Row label="Boost-Tastenkürzel" hint="Boost an/aus, auch im Spiel">
+              <input
+                defaultValue={settings?.boostHotkey ?? "Ctrl+Shift+B"}
+                key={settings?.boostHotkey}
+                aria-label="Boost-Tastenkürzel"
+                onBlur={async (e) => {
+                  const v = e.target.value.trim();
+                  if (v === settings?.boostHotkey) return;
+                  await updateSettings((s) => ({ ...s, boostHotkey: v }));
+                  try {
+                    await api.applyOverlay();
+                    setOverlayMsg(null);
+                  } catch (err) {
+                    setOverlayMsg(String(err));
+                  }
+                }}
+                className="h-9 w-36 rounded-lg border border-line bg-surface-2 px-3 text-sm text-text"
+              />
+            </Row>
             <Row label="Benachrichtigungen" hint="Bei Überhitzung oder Ping-Spitzen">
               <Toggle label="Benachrichtigungen" checked={settings?.notifications ?? false} disabled={!settings} onChange={(v) => updateSettings((s) => ({ ...s, notifications: v }))} />
             </Row>
@@ -126,6 +145,7 @@ export default function SettingsPage({ info }: { info: AppInfo | null }) {
             </Row>
           </div>
 
+          {overlayMsg && <p className="mt-3 text-xs text-bad">{overlayMsg}</p>}
           {info && (
             <p className="mt-3 text-xs text-faint">
               Version {info.version} · {info.os} {info.osVersion} · Admin-Rechte: {info.isElevated ? "ja" : "nein"}

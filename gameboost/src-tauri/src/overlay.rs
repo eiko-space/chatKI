@@ -5,7 +5,7 @@
 
 use crate::settings::{OverlaySettings, SettingsStore};
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_global_shortcut::GlobalShortcutExt;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 const LABEL: &str = "overlay";
 const BASE_W: f64 = 210.0;
@@ -23,20 +23,54 @@ fn geometry<R: Runtime>(app: &AppHandle<R>, s: &OverlaySettings) -> Option<(Logi
     Some((LogicalPosition::new(x, y), LogicalSize::new(w, h)))
 }
 
-/// Erstellt/aktualisiert das Overlay-Fenster und das Tastenkürzel gemäß den Einstellungen.
-pub fn apply<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    let s = app.state::<SettingsStore>().get().overlay;
+/// Was ein gedrücktes Tastenkürzel auslösen soll.
+pub fn handle_shortcut<R: Runtime>(app: &AppHandle<R>, pressed: &Shortcut) {
+    let settings = app.state::<SettingsStore>().get();
+    let is = |text: &str| !text.is_empty() && text.parse::<Shortcut>().is_ok_and(|s| &s == pressed);
+    if is(&settings.boost_hotkey) {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            if app.state::<crate::boost::BoostEngine>().status().active {
+                crate::revert_now(&app);
+            } else {
+                let _ = crate::boost_now(&app);
+            }
+        });
+    } else if is(&settings.overlay.hotkey) {
+        toggle(app);
+    }
+}
+
+/// Registriert alle Tastenkürzel neu (Boost + Overlay).
+fn register_hotkeys<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let settings = app.state::<SettingsStore>().get();
     let gs = app.global_shortcut();
     let _ = gs.unregister_all();
+    let mut errors = Vec::new();
+    if !settings.boost_hotkey.trim().is_empty() {
+        if let Err(e) = gs.register(settings.boost_hotkey.as_str()) {
+            errors.push(format!("Boost-Kürzel „{}“ ist ungültig oder belegt ({e})", settings.boost_hotkey));
+        }
+    }
+    if settings.overlay.enabled {
+        if let Err(e) = gs.register(settings.overlay.hotkey.as_str()) {
+            errors.push(format!("Overlay-Kürzel „{}“ ist ungültig oder belegt ({e})", settings.overlay.hotkey));
+        }
+    }
+    if errors.is_empty() { Ok(()) } else { Err(errors.join("; ")) }
+}
+
+/// Erstellt/aktualisiert das Overlay-Fenster und die Tastenkürzel gemäß den Einstellungen.
+pub fn apply<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let s = app.state::<SettingsStore>().get().overlay;
+    let hotkeys = register_hotkeys(app);
 
     if !s.enabled {
         if let Some(w) = app.get_webview_window(LABEL) {
             let _ = w.close();
         }
-        return Ok(());
+        return hotkeys;
     }
-
-    gs.register(s.hotkey.as_str()).map_err(|e| format!("Tastenkürzel „{}“ ist ungültig oder belegt: {e}", s.hotkey))?;
 
     let (pos, size) = geometry(app, &s).ok_or("Kein Bildschirm gefunden.")?;
     let window = match app.get_webview_window(LABEL) {
@@ -59,7 +93,7 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let _ = window.set_position(pos);
     let _ = window.set_ignore_cursor_events(true); // Klicks gehen durch ins Spiel
     let _ = window.show();
-    Ok(())
+    hotkeys
 }
 
 /// Per Tastenkürzel ein-/ausblenden.

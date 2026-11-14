@@ -13,6 +13,7 @@ mod settings;
 mod storage;
 mod telemetry;
 mod tray;
+mod vision;
 mod watcher;
 mod win;
 
@@ -77,9 +78,9 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        overlay::toggle(app);
+                        overlay::handle_shortcut(app, shortcut);
                     }
                 })
                 .build(),
@@ -93,6 +94,7 @@ pub fn run() {
             app.manage(SettingsStore::load(&data_dir));
             app.manage(BoostEngine::load(&data_dir));
             app.manage(sessions::SessionStore::load(&data_dir));
+            vision::init(&data_dir);
             tray::create(app.handle())?;
 
             let presentmon = telemetry::presentmon::locate(app.path().resource_dir().ok());
@@ -126,6 +128,9 @@ pub fn run() {
             commands::system::set_autostart,
             commands::system::apply_overlay,
             commands::system::set_locked,
+            commands::system::get_vision,
+            commands::system::set_vision,
+            commands::system::open_setting,
             commands::telemetry::start_fps_capture,
             commands::telemetry::stop_fps_capture,
             commands::telemetry::start_measurement,
@@ -166,6 +171,7 @@ pub fn run() {
             if let Some(hub) = app.try_state::<Arc<Hub>>() {
                 hub.stop_capture();
             }
+            let _ = vision::reset();
             // Läuft beim Beenden noch ein Boost, wird alles zurückgesetzt – nichts bleibt verändert.
             if app.try_state::<BoostEngine>().is_some_and(|e| e.status().active) {
                 revert_now(app);

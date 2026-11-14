@@ -83,3 +83,26 @@ pub fn apply_overlay(app: tauri::AppHandle) -> Result<(), String> {
 pub fn set_locked(locked: bool) {
     crate::LOCKED.store(locked, std::sync::atomic::Ordering::SeqCst);
 }
+
+#[tauri::command]
+pub fn get_vision() -> u32 {
+    crate::vision::level()
+}
+
+#[tauri::command]
+pub fn set_vision(level: u32) -> Result<(), String> {
+    crate::vision::set_level(level.min(100))
+}
+
+/// Öffnet eine Windows-/Treiber-Einstellung (nur feste, bekannte Ziele).
+#[tauri::command]
+pub fn open_setting(target: String) -> Result<(), String> {
+    let (program, arg) = match target.as_str() {
+        "sound" => ("control.exe", "mmsys.cpl"),
+        "display" => ("explorer.exe", "ms-settings:display"),
+        "nvidia" => ("explorer.exe", r"shell:AppsFolder\NVIDIACorp.NVIDIAControlPanel_56jk63ar0cjw8!NVIDIACorp.NVIDIAControlPanel"),
+        "amd" => ("explorer.exe", r"C:\Program Files\AMD\CNext\CNext\RadeonSoftware.exe"),
+        _ => return Err("Unbekanntes Ziel.".into()),
+    };
+    std::process::Command::new(program).arg(arg).spawn().map(|_| ()).map_err(|e| e.to_string())
+}

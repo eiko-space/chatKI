@@ -71,6 +71,7 @@ export interface Settings {
   overlay: OverlaySettings;
   restorePointCreatedAt: number | null;
   firstBoostConfirmed: boolean;
+  boostHotkey: string;
 }
 
 export interface PermanentItem {
@@ -106,6 +107,9 @@ export const api = {
     invoke<void>("set_fullscreen_optimizations", { exePath, disable }),
   getPermanent: () => invoke<PermanentItem[]>("get_permanent"),
   setPermanent: (id: string, on: boolean) => invoke<string>("set_permanent", { id, on }),
+  getVision: () => invoke<number>("get_vision"),
+  setVision: (level: number) => invoke<void>("set_vision", { level }),
+  openSetting: (target: "sound" | "display" | "nvidia" | "amd") => invoke<void>("open_setting", { target }),
   getAutostart: () => invoke<boolean>("get_autostart"),
   setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
   applyOverlay: () => invoke<void>("apply_overlay"),

@@ -17,6 +17,7 @@ import HistoryPage from "./pages/History";
 import Profiles from "./pages/Profiles";
 import SettingsPage from "./pages/Settings";
 import Account from "./pages/Account";
+import Advantages from "./pages/Advantages";
 
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -39,6 +40,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard info={info} />} />
             <Route path="/boost" element={<Boost info={info} />} />
+            <Route path="/vorteile" element={<Advantages />} />
             <Route path="/netzwerk" element={<Network />} />
             <Route path="/pc-check" element={<PcCheck info={info} />} />
             <Route path="/verlauf" element={<HistoryPage />} />
