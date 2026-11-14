@@ -14,6 +14,7 @@ pub enum Reason {
     Launcher,
     Game,
     Driver,
+    Essential,
     MicrophoneInUse,
 }
 
@@ -30,6 +31,7 @@ impl Reason {
             Reason::Launcher => "Spiele-Launcher",
             Reason::Game => "Spiel",
             Reason::Driver => "Treiber-/Hardware-Programm",
+            Reason::Essential => "Wichtiges Programm (VPN, Passwort-Manager, Fernwartung, Entwicklung)",
             Reason::MicrophoneInUse => "Mikrofon gerade aktiv",
         }
     }
@@ -80,6 +82,21 @@ const PATTERNS: &[(Reason, &[&str])] = &[
         "tobii", "lenovo", "vantage", "dell", "alienware", "hp", "omen", "acer", "predator", "msi", "gigabyte", "aorus",
         "nzxt", "hwinfo", "fancontrol", "argus", "openrgb", "signalrgb", "wallpaper", "rainmeter", "displayfusion",
         "driver", "tray", "audio", "sound", "touchpad", "keyboard", "mouse", "pen", "battery", "power",
+    ]),
+    (Reason::Essential, &[
+        // VPN
+        "vpn", "wireguard", "openvpn", "nord", "proton", "mullvad", "express", "surfshark", "cyberghost", "tailscale",
+        "zerotier", "hamachi", "radmin", "cloudflare", "warp",
+        // Passwort-Manager
+        "1password", "bitwarden", "keepass", "lastpass", "dashlane", "enpass",
+        // Fernwartung / Streaming vom PC
+        "anydesk", "teamviewer", "parsec", "rustdesk", "sunshine", "moonlight", "rdp", "remote",
+        // Entwicklung / Konsolen / Laufzeiten
+        "node", "python", "java", "cargo", "rustc", "rust-analyzer", "git", "code", "devenv", "msbuild", "docker", "wsl",
+        "vmmem", "vmware", "virtualbox", "powershell", "pwsh", "cmd.exe", "windowsterminal", "openconsole", "ssh",
+        "runner", "agent", "daemon",
+        // Backup / Sicherheit
+        "backup", "veeam", "acronis", "macrium", "kaspersky", "secure", "guard", "shield", "firewall",
     ]),
     (Reason::Launcher, &[
         "steam", "epicgameslauncher", "epicwebhelper", "epiconlineservices", "riotclient", "leagueclient",
@@ -173,5 +190,11 @@ mod tests {
         assert_eq!(check("OneDrive.exe", &none), None);
         assert_eq!(check("Dropbox.exe", &none), None);
         assert_eq!(check("CCXProcess.exe", &none), None);
+        assert_eq!(check("Widgets.exe", &none), None);
+        assert_eq!(check("PhoneExperienceHost.exe", &none), None);
+        // Wichtige Programme bleiben geschützt
+        assert_eq!(check("NordVPN.exe", &none), Some(Reason::Essential));
+        assert_eq!(check("Bitwarden.exe", &none), Some(Reason::Essential));
+        assert_eq!(check("Runner.Worker.exe", &none), Some(Reason::Essential));
     }
 }

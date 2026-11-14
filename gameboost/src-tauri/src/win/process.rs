@@ -14,6 +14,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowLongW, G
 pub struct Proc {
     pub pid: u32,
     pub name: String,
+    pub parent: u32,
 }
 
 /// Alle laufenden Prozesse.
@@ -29,7 +30,7 @@ pub fn list() -> Vec<Proc> {
         e.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
         if Process32FirstW(snap, &mut e) != 0 {
             loop {
-                out.push(Proc { pid: e.th32ProcessID, name: from_wide(&e.szExeFile) });
+                out.push(Proc { pid: e.th32ProcessID, name: from_wide(&e.szExeFile), parent: e.th32ParentProcessID });
                 if Process32NextW(snap, &mut e) == 0 {
                     break;
                 }
@@ -212,4 +213,18 @@ pub fn pids_with_visible_windows() -> std::collections::HashSet<u32> {
     // SAFETY: Callback schreibt nur in das übergebene HashSet, das während des Aufrufs lebt.
     unsafe { EnumWindows(Some(collect_visible), &mut set as *mut _ as LPARAM) };
     set
+}
+
+/// PIDs aller „Vorfahren“ eines Prozesses (Eltern, Großeltern …) – die dürfen nie beendet werden.
+pub fn ancestors(pid: u32, all: &[Proc]) -> std::collections::HashSet<u32> {
+    let mut out = std::collections::HashSet::new();
+    let mut cur = pid;
+    for _ in 0..64 {
+        let Some(p) = all.iter().find(|p| p.pid == cur) else { break };
+        if p.parent == 0 || !out.insert(p.parent) {
+            break;
+        }
+        cur = p.parent;
+    }
+    out
 }

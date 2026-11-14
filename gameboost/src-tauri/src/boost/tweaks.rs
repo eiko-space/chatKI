@@ -192,11 +192,13 @@ mod imp {
         // Programme, von denen IRGENDEIN Prozess ein Fenster hat (z. B. Chrome mit seinen Tab-Prozessen), bleiben komplett an.
         let visible_names: std::collections::HashSet<String> = all.iter().filter(|p| visible.contains(&p.pid)).map(|p| p.name.to_ascii_lowercase()).collect();
         let me = std::process::id();
+        // Alles, was GameBoost gestartet hat (Eltern-Kette), bleibt unangetastet.
+        let parents = process::ancestors(me, &all);
         let mut closed: Vec<ClosedApp> = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for p in &all {
             let lower = p.name.to_ascii_lowercase();
-            if p.pid == me || p.pid <= 4 || visible_names.contains(&lower) || seen.contains(&lower) {
+            if p.pid == me || p.pid <= 4 || parents.contains(&p.pid) || visible_names.contains(&lower) || seen.contains(&lower) {
                 continue;
             }
             if game_exe.is_some_and(|g| g.eq_ignore_ascii_case(&p.name)) || protect::check(&p.name, mic).is_some() {
@@ -213,7 +215,7 @@ mod imp {
             }
             // Gleichnamige Prozesse (z. B. Helfer mit mehreren Instanzen) alle beenden, aber nur einmal neu starten
             let mut any = false;
-            for q in all.iter().filter(|q| q.name.eq_ignore_ascii_case(&p.name)) {
+            for q in all.iter().filter(|q| q.name.eq_ignore_ascii_case(&p.name) && !parents.contains(&q.pid) && q.pid != me) {
                 any |= process::close(q.pid).is_ok();
             }
             seen.insert(lower);
