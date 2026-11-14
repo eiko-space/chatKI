@@ -53,18 +53,66 @@ fn command(path: &Path) -> Command {
     cmd
 }
 
+/// Startet PresentMon aus einer Kopie im Benutzerordner. So ist die Datei im Installationsordner nie
+/// gesperrt und ein Update kann sie jederzeit ersetzen.
+fn runtime_copy(src: &Path) -> PathBuf {
+    let Some(base) = std::env::var_os("LOCALAPPDATA") else { return src.to_path_buf() };
+    let dir = Path::new(&base).join("GameBoost").join("runtime");
+    let dst = dir.join("PresentMon.exe");
+    let same = std::fs::metadata(&dst).ok().zip(std::fs::metadata(src).ok()).is_some_and(|(a, b)| a.len() == b.len());
+    if same {
+        return dst;
+    }
+    match std::fs::create_dir_all(&dir).and_then(|_| std::fs::copy(src, &dst)) {
+        Ok(_) => dst,
+        Err(_) => src.to_path_buf(),
+    }
+}
+
+/// Bindet PresentMon an GameBoost: Wird GameBoost beendet (auch hart, z. B. durch ein Update),
+/// beendet Windows PresentMon automatisch mit.
+#[cfg(windows)]
+fn tie_to_app(child: &Child) {
+    use std::os::windows::io::AsRawHandle;
+    use std::sync::OnceLock;
+    use windows_sys::Win32::System::JobObjects::*;
+    static JOB: OnceLock<usize> = OnceLock::new();
+    let job = *JOB.get_or_init(|| {
+        // SAFETY: Job-Objekt wird einmal erstellt und bleibt bis zum Prozessende offen (gewollt).
+        unsafe {
+            let h = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if h.is_null() {
+                return 0;
+            }
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            SetInformationJobObject(h, JobObjectExtendedLimitInformation, (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(), std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32);
+            h as usize
+        }
+    });
+    if job != 0 {
+        // SAFETY: beide Handles sind gültig.
+        unsafe { AssignProcessToJobObject(job as _, child.as_raw_handle() as _) };
+    }
+}
+
+#[cfg(not(windows))]
+fn tie_to_app(_child: &Child) {}
+
 pub fn spawn(
     path: &Path,
     frames: Arc<Mutex<FrameStore>>,
     status: Arc<Mutex<CaptureStatus>>,
     generation: Arc<AtomicU64>,
 ) -> std::io::Result<Child> {
-    let mut cmd = command(path);
+    let exe = runtime_copy(path);
+    let mut cmd = command(&exe);
     cmd.args(["--output_stdout", "--no_console_stats", "--stop_existing_session", "--session_name", SESSION_NAME, "--track_pc_latency"]);
     for e in EXCLUDE {
         cmd.args(["--exclude", e]);
     }
     let mut child = cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+    tie_to_app(&child);
 
     let my_gen = generation.load(Ordering::SeqCst);
     let stderr_tail = Arc::new(Mutex::new(String::new()));
