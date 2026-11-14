@@ -1,26 +1,23 @@
 import { useEffect, useState } from "react";
-import { Lock, Mic, ShieldCheck } from "lucide-react";
+import { Lock } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Toggle } from "../components/ui/Toggle";
-import { Details } from "../components/ui/Details";
 import { ResultList } from "../components/ui/ResultList";
 import { BoostControl } from "../components/BoostControl";
 import { MeasureWizard } from "../components/MeasureWizard";
 import { useAppState } from "../lib/app-state";
-import { api, type LogEntry, type ProtectedApp, type TweakInfo } from "../lib/api";
+import { api, type LogEntry, type PermanentItem, type TweakInfo } from "../lib/api";
 import { isTauri, type AppInfo } from "../lib/tauri";
 
 export default function Boost({ info }: { info: AppInfo | null }) {
   const { catalog, settings, boost, lastRevert, updateSettings } = useAppState();
-  const [protectedApps, setProtectedApps] = useState<ProtectedApp[]>([]);
   const [log, setLog] = useState<LogEntry[]>([]);
 
   useEffect(() => {
     if (!isTauri()) return;
     const load = () => {
-      api.protectedRunning().then(setProtectedApps).catch(() => {});
       api.changeLog().then(setLog).catch(() => {});
     };
     load();
@@ -92,27 +89,7 @@ export default function Boost({ info }: { info: AppInfo | null }) {
           </Card>
         ))}
 
-        <Card className="col-span-12 lg:col-span-6" title="Geschützt" subtitle="Wird nie beendet" action={<ShieldCheck size={16} className="text-good" />}>
-          {protectedApps.length === 0 ? (
-            <p className="text-sm text-faint">{isTauri() ? "Gerade läuft nichts aus der Schutzliste." : "Nur in der App verfügbar."}</p>
-          ) : (
-            <ul className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
-              {protectedApps.map((p) => (
-                <li key={p.exe} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="truncate">{p.exe}</span>
-                  <span className={`flex shrink-0 items-center gap-1 text-[11px] ${p.reason.startsWith("Mikrofon") ? "text-accent" : "text-faint"}`}>
-                    {p.reason.startsWith("Mikrofon") && <Mic size={11} />} {p.reason}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <Details label="Wie funktioniert der Schutz?">
-            Fest geschützt sind Windows-Systemprozesse, Virenschutz, Anti-Cheat, Voice-Chat & Anrufe (Discord, TeamSpeak, Teams, Zoom …),
-            Audio-/Streaming-Software, Maus-/Headset-Software und Spiele-Launcher. Zusätzlich prüft GameBoost bei jedem Boost, welche
-            Programme gerade dein Mikrofon benutzen (dieselbe Info, die Windows für das Mikrofon-Symbol nutzt) – die bleiben immer an.
-          </Details>
-        </Card>
+        <PermanentCard />
 
         <Card className="col-span-12 lg:col-span-6" title="Änderungsprotokoll" >
           {log.length === 0 ? (
@@ -133,5 +110,43 @@ export default function Boost({ info }: { info: AppInfo | null }) {
         </Card>
       </div>
     </>
+  );
+}
+
+/** Dauerhafte Optimierungen: wirken ab dem nächsten Spielstart, an/aus jederzeit. */
+function PermanentCard() {
+  const [items, setItems] = useState<PermanentItem[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
+  const load = () => api.getPermanent().then(setItems).catch(() => {});
+  useEffect(() => {
+    if (isTauri()) load();
+  }, []);
+  const toggle = async (id: string, on: boolean) => {
+    try {
+      setMsg(await api.setPermanent(id, on));
+    } catch (e) {
+      setMsg(String(e));
+    }
+    load();
+  };
+  return (
+    <Card className="col-span-12 lg:col-span-6" title="Dauerhafte Optimierungen" subtitle="Bleiben aktiv, bis du sie ausschaltest">
+      {items.length === 0 ? (
+        <p className="text-sm text-faint">{isTauri() ? "Lade …" : "Nur in der App verfügbar."}</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {items.map((it) => (
+            <li key={it.id} className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+              <div className="min-w-0">
+                <div className="text-sm font-medium">{it.title}</div>
+                <p className="mt-0.5 text-xs text-muted">{it.summary}</p>
+              </div>
+              <Toggle label={it.title} checked={it.enabled} disabled={!it.available} onChange={(v) => toggle(it.id, v)} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {msg && <p className="mt-3 text-xs text-muted">{msg}</p>}
+    </Card>
   );
 }

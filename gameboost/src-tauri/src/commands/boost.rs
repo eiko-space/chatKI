@@ -126,3 +126,22 @@ pub fn set_fullscreen_optimizations(engine: State<'_, BoostEngine>, exe_path: St
     engine.log("profile", "Vollbild-Optimierungen", if res.is_ok() { "applied" } else { "failed" }, &msg);
     res
 }
+
+fn game_paths(store: &SettingsStore) -> Vec<String> {
+    store.get().profiles.into_iter().filter_map(|p| p.exe_path).collect()
+}
+
+#[tauri::command]
+pub fn get_permanent(store: State<'_, SettingsStore>) -> Vec<boost::permanent::PermanentItem> {
+    boost::permanent::status(&game_paths(&store))
+}
+
+#[tauri::command]
+pub fn set_permanent(engine: State<'_, BoostEngine>, store: State<'_, SettingsStore>, id: String, on: bool) -> Result<String, String> {
+    let res = boost::permanent::set(&id, on, &game_paths(&store));
+    match &res {
+        Ok(m) => engine.log("permanent", &id, "applied", m),
+        Err(e) => engine.log("permanent", &id, "failed", e),
+    }
+    res
+}

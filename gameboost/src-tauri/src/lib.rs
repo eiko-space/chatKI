@@ -40,7 +40,10 @@ pub(crate) fn boost_now<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<BoostSt
     if let Some(hub) = app.try_state::<Arc<Hub>>() {
         hub.capture_baseline();
     }
-    let status = app.state::<BoostEngine>().apply(&settings, game, elevation::is_elevated())?;
+    let emit = |done: usize, total: usize, step: &str| {
+        let _ = app.emit("boost-progress", serde_json::json!({ "mode": "apply", "done": done, "total": total, "step": step }));
+    };
+    let status = app.state::<BoostEngine>().apply(&settings, game, elevation::is_elevated(), &emit)?;
     let _ = app.emit("boost-changed", &status);
     Ok(status)
 }
@@ -48,7 +51,10 @@ pub(crate) fn boost_now<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<BoostSt
 /// Boost beenden und alles zurücksetzen.
 pub(crate) fn revert_now<R: tauri::Runtime>(app: &AppHandle<R>) -> Vec<TweakResult> {
     let engine = app.state::<BoostEngine>();
-    let results = engine.revert();
+    let emit = |done: usize, total: usize, step: &str| {
+        let _ = app.emit("boost-progress", serde_json::json!({ "mode": "revert", "done": done, "total": total, "step": step }));
+    };
+    let results = engine.revert(&emit);
     if let Some(hub) = app.try_state::<Arc<Hub>>() {
         hub.clear_baseline();
     }
@@ -138,6 +144,8 @@ pub fn run() {
             commands::boost::get_settings,
             commands::boost::save_settings,
             commands::boost::set_fullscreen_optimizations,
+            commands::boost::get_permanent,
+            commands::boost::set_permanent,
             commands::auth::secure_get,
             commands::auth::secure_set,
             commands::auth::secure_delete,

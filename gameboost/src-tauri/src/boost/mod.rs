@@ -1,6 +1,7 @@
 //! Boost-Engine: wendet Tweaks an, speichert vorher den alten Zustand auf der Festplatte
 //! und kann alles wieder rückgängig machen – auch nach einem Absturz oder Neustart.
 
+pub mod permanent;
 pub mod protect;
 pub mod tweaks;
 
@@ -47,6 +48,10 @@ pub enum Revert {
     /// Energiespar-Werte im Energieplan: (Untergruppe, Einstellung, Netz, Akku)
     DevicePower { scheme: String, values: Vec<(String, String, u32, u32)> },
     StickyKeys { flags: u32 },
+    /// Energiespar-Drosselung eines Prozesses wieder Windows überlassen
+    PowerThrottle { pid: u32, exe: String },
+    /// Prioritäten mehrerer Prozesse: (PID, Name, vorherige Priorität)
+    Priorities { items: Vec<(u32, String, u32)> },
     /// Mehrere Änderungen eines Tweaks (werden rückwärts zurückgesetzt)
     Multi { parts: Vec<Revert> },
 }
@@ -83,9 +88,19 @@ pub fn catalog() -> &'static [TweakInfo] {
             details: "Wechselt auf den Windows-Energieplan „Höchstleistung“ und danach zurück auf deinen bisherigen Plan. Hilft vor allem gegen kurze Ruckler, wenn die CPU aus dem Stromsparmodus hochtaktet. Bei Laptops steigt der Stromverbrauch.",
         },
         TweakInfo {
-            id: "game_priority", title: "Spiel mit hoher Priorität", category: "fps", needs_admin: false, default_on: true, one_shot: false,
-            summary: "Windows bevorzugt dein Spiel bei der CPU-Verteilung.",
+            id: "game_priority", title: "Spiel bevorzugen", category: "fps", needs_admin: false, default_on: true, one_shot: false,
+            summary: "Hohe Priorität fürs Spiel, keine Energiespar-Drosselung.",
             details: "Setzt nur die Prozess-Priorität des laufenden Spiels auf „Hoch“ – wie im Task-Manager. Kein Eingriff in den Spielprozess. Manche Anti-Cheat-Systeme verbieten das; dann wird es übersprungen. Bringt am meisten, wenn die CPU stark ausgelastet ist.",
+        },
+        TweakInfo {
+            id: "cpu_full", title: "CPU-Kerne immer wach", category: "fps", needs_admin: false, default_on: true, one_shot: false,
+            summary: "Kein Kern-Parken, volle Mindestleistung, schneller Turbo.",
+            details: "Setzt im aktiven Energieplan die minimale Prozessorleistung auf 100 %, verhindert das Abschalten (Parken) von CPU-Kernen und stellt den Turbo auf „Aggressiv“. Weniger Ruckler, wenn das Spiel plötzlich mehr Leistung braucht.",
+        },
+        TweakInfo {
+            id: "background_priority", title: "Browser & Co. drosseln", category: "fps", needs_admin: false, default_on: true, one_shot: false,
+            summary: "Browser laufen weiter, bekommen aber weniger CPU als dein Spiel.",
+            details: "Senkt die Priorität von Browsern (Chrome, Edge, Firefox, Opera, Brave …) auf „Niedriger als normal“. Nichts wird beendet – Musik und Videos laufen weiter.",
         },
         TweakInfo {
             id: "close_apps", title: "Hintergrund-Apps beenden", category: "fps", needs_admin: false, default_on: true, one_shot: false,
@@ -123,8 +138,8 @@ pub fn catalog() -> &'static [TweakInfo] {
             details: "Leert einmalig die Standby-Liste des Arbeitsspeichers (wie „RAMMap“ oder „ISLC“). Das hilft nur, wenn dein freier Arbeitsspeicher knapp ist – sonst bringt es nichts. Die App zeigt dir danach die echten Werte vorher/nachher.",
         },
         TweakInfo {
-            id: "pause_updates", title: "Updates & Downloads von Windows pausieren", category: "network", needs_admin: true, default_on: true, one_shot: false,
-            summary: "Windows Update und Übermittlungsoptimierung laden nicht im Spiel.",
+            id: "pause_updates", title: "Updates & Windows-Suche pausieren", category: "network", needs_admin: true, default_on: true, one_shot: false,
+            summary: "Keine Downloads und keine Festplatten-Indexierung im Spiel.",
             details: "Hält die Dienste „Windows Update“, „Hintergrundübertragung (BITS)“ und „Übermittlungsoptimierung“ an und startet sie nach dem Boost wieder. Downloads in Steam/Epic pausierst du am besten im Launcher selbst – GameBoost beendet Launcher bewusst nicht.",
         },
         TweakInfo {
@@ -234,7 +249,7 @@ impl BoostEngine {
         entries
     }
 
-    pub fn apply(&self, settings: &Settings, game: Option<GameTarget>, admin: bool) -> Result<BoostStatus, String> {
+    pub fn apply(&self, settings: &Settings, game: Option<GameTarget>, admin: bool, progress: &dyn Fn(usize, usize, &str)) -> Result<BoostStatus, String> {
         // Sperre für die ganze Dauer: verhindert, dass zwei Boosts gleichzeitig starten.
         let mut guard = self.state.lock().unwrap();
         if guard.is_some() {
@@ -249,7 +264,9 @@ impl BoostEngine {
             None => settings.enabled_tweaks.iter().any(|t| t == id),
         };
 
-        for t in catalog().iter().filter(|t| enabled(t.id)) {
+        let todo: Vec<&TweakInfo> = catalog().iter().filter(|t| enabled(t.id)).collect();
+        for (n, t) in todo.iter().enumerate() {
+            progress(n, todo.len(), t.title);
             let outcome: tweaks::Applied = if t.needs_admin && !admin {
                 Err("SKIP:Benötigt Administratorrechte.".into())
             } else {
@@ -259,6 +276,8 @@ impl BoostEngine {
                         Some(g) => tweaks::game_priority(g.pid, &g.exe),
                         None => Err("SKIP:Kein laufendes Spiel erkannt.".into()),
                     },
+                    "cpu_full" => tweaks::cpu_full(),
+                    "background_priority" => tweaks::background_priority(&mic),
                     "close_apps" => {
                         let apps: Vec<String> = settings.background_apps.iter().filter(|a| a.enabled).map(|a| a.exe.clone()).collect();
                         tweaks::close_apps(&apps, &mic)
@@ -293,17 +312,20 @@ impl BoostEngine {
             // Nach jedem Schritt speichern: stürzt etwas ab, ist trotzdem alles rückgängig machbar.
             self.persist(&state);
         }
+        progress(todo.len(), todo.len(), "Fertig");
 
         let status = BoostStatus { active: true, started_at: Some(state.started_at), game: state.game.clone(), results: state.results.clone() };
         *guard = Some(state);
         Ok(status)
     }
 
-    pub fn revert(&self) -> Vec<TweakResult> {
+    pub fn revert(&self, progress: &dyn Fn(usize, usize, &str)) -> Vec<TweakResult> {
         let Some(state) = self.state.lock().unwrap().take() else { return Vec::new() };
         let mut results = Vec::new();
         let mut failed = Vec::new();
-        for a in state.applied.iter().rev() {
+        let total = state.applied.len();
+        for (n, a) in state.applied.iter().rev().enumerate() {
+            progress(n, total, &a.title);
             let (status, message) = match tweaks::revert(&a.revert) {
                 Ok(m) => ("reverted", m),
                 Err(e) => {
@@ -322,6 +344,7 @@ impl BoostEngine {
             self.persist(&rest);
             *self.state.lock().unwrap() = Some(rest);
         }
+        progress(total, total, "Fertig");
         self.log("boost", "Boost beendet", "info", "");
         results
     }

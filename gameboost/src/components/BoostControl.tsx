@@ -6,6 +6,7 @@ import { Dialog } from "./ui/Dialog";
 import { useAppState } from "../lib/app-state";
 import { api } from "../lib/api";
 import { isTauri, type AppInfo } from "../lib/tauri";
+import { useBoostProgress } from "../lib/progress";
 
 /**
  * Der große Boost-Knopf inkl. Sicherheitsabfrage vor dem allerersten Boost
@@ -19,6 +20,7 @@ export function BoostControl({ info }: { info: AppInfo | null }) {
   const [working, setWorking] = useState(false);
 
   const active = boost?.active ?? false;
+  const prog = useBoostProgress(busy);
   const enabled = catalog.filter((t) => settings?.enabledTweaks.includes(t.id));
 
   const onClick = () => {
@@ -45,18 +47,18 @@ export function BoostControl({ info }: { info: AppInfo | null }) {
 
   return (
     <div className="flex flex-col items-center">
-      <BoostButton active={active} working={busy || working} disabled={!isTauri()} onClick={onClick} />
+      <BoostButton active={active} progress={prog.active ? prog.percent : working ? 0 : null} disabled={!isTauri()} onClick={onClick} />
       <p className="mt-5 max-w-xs text-center text-sm text-muted">
         {!isTauri()
           ? "Nur in der App verfügbar."
-          : busy
-            ? active ? "Setze alles zurück …" : "Wende Optimierungen an …"
+          : prog.active
+            ? <span className="text-text">{prog.mode === "revert" ? "Setze zurück" : "Optimiere"}: <span className="text-accent">{prog.step}</span></span>
             : active
               ? `Aktiv${boost?.game ? ` für ${boost.game}` : ""} · erneut klicken zum Zurücksetzen`
               : "Ein Klick – alles lässt sich rückgängig machen."}
       </p>
       {error && <p className="mt-2 max-w-xs text-center text-xs text-bad">{error}</p>}
-      {active && !busy && boost && (
+      {active && !prog.active && boost && (
         <div className="mt-4 flex flex-wrap justify-center gap-1.5">
           {boost.results.filter((r) => r.status === "applied").map((r, i) => (
             <span key={r.id} className="rounded-full bg-accent-dim px-2.5 py-1 text-[11px] font-medium text-accent animate-pop-in" style={{ animationDelay: `${150 + i * 90}ms` }}>

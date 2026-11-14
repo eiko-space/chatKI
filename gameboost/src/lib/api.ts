@@ -73,6 +73,14 @@ export interface Settings {
   firstBoostConfirmed: boolean;
 }
 
+export interface PermanentItem {
+  id: string;
+  title: string;
+  summary: string;
+  enabled: boolean;
+  available: boolean;
+}
+
 export interface ProtectedApp {
   exe: string;
   reason: string;
@@ -96,6 +104,8 @@ export const api = {
   saveSettings: (settings: Settings) => invoke<void>("save_settings", { settings }),
   setFullscreenOptimizations: (exePath: string, disable: boolean) =>
     invoke<void>("set_fullscreen_optimizations", { exePath, disable }),
+  getPermanent: () => invoke<PermanentItem[]>("get_permanent"),
+  setPermanent: (id: string, on: boolean) => invoke<string>("set_permanent", { id, on }),
   getAutostart: () => invoke<boolean>("get_autostart"),
   setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
   applyOverlay: () => invoke<void>("apply_overlay"),

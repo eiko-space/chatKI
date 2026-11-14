@@ -1,37 +1,27 @@
 import { useEffect, useState } from "react";
-import { Loader2, Play, Route, Trophy, Wifi, WifiOff } from "lucide-react";
+import { Loader2, Play, Trophy, Wifi, WifiOff } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { Metric } from "../components/ui/Metric";
-import { toolsApi, type NetApp, type RegionResult, type TraceResult } from "../lib/api";
+import { toolsApi, type NetApp, type RegionResult } from "../lib/api";
 import { useTelemetry } from "../lib/telemetry";
 import { isTauri } from "../lib/tauri";
 import { num } from "../lib/format";
 
-const KIND: Record<string, { label: string; tone: "neutral" | "accent" | "good" | "bad" }> = {
-  home: { label: "Heimnetz", tone: "neutral" },
-  isp: { label: "Anbieter", tone: "neutral" },
-  internet: { label: "Internet", tone: "neutral" },
-  target: { label: "Ziel", tone: "accent" },
-  unknown: { label: "keine Antwort", tone: "neutral" },
-};
 
 export default function Network() {
   const { snapshot } = useTelemetry();
   const net = snapshot?.network;
   const [regions, setRegions] = useState<RegionResult[] | null>(null);
   const [regionBusy, setRegionBusy] = useState(false);
-  const [target, setTarget] = useState("1.1.1.1");
-  const [trace, setTrace] = useState<TraceResult | null>(null);
-  const [traceBusy, setTraceBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [apps, setApps] = useState<NetApp[]>([]);
 
   useEffect(() => {
     if (!isTauri()) return;
-    const load = () => toolsApi.netApps().then(setApps).catch(() => {});
+    const load = () => toolsApi.netApps().then((a) => setApps(a ?? [])).catch(() => {});
     load();
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
@@ -46,19 +36,6 @@ export default function Network() {
       setError(String(e));
     } finally {
       setRegionBusy(false);
-    }
-  };
-
-  const runTrace = async () => {
-    setTraceBusy(true);
-    setError(null);
-    setTrace(null);
-    try {
-      setTrace(await toolsApi.traceroute(target));
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setTraceBusy(false);
     }
   };
 
@@ -141,65 +118,6 @@ export default function Network() {
           )}
         </Card>
 
-        <Card
-          className="col-span-12"
-          title="Route-Analyse"
-          subtitle="Wo entsteht der Ping?"
-          action={<Route size={16} className="text-faint" />}
-        >
-          <form
-            className="flex flex-wrap gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              runTrace();
-            }}
-          >
-            <input
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              aria-label="Ziel (IP oder Adresse)"
-              className="h-9 w-64 rounded-lg border border-line bg-surface-2 px-3 text-sm text-text"
-            />
-            {best && (
-              <Button type="button" variant="ghost" onClick={() => setTarget(best.host)}>Beste Region einsetzen</Button>
-            )}
-            <Button type="submit" variant="primary" disabled={traceBusy || !isTauri()}>
-              {traceBusy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} {traceBusy ? "Analysiere … (bis 1 min)" : "Analysieren"}
-            </Button>
-          </form>
-
-          {trace && (
-            <div className="mt-5 space-y-4">
-              <ul className="space-y-1.5 rounded-xl bg-surface-2 p-4 text-sm">
-                {trace.analysis.map((a) => <li key={a}>{a}</li>)}
-              </ul>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-faint">
-                    <th className="pb-2 font-medium">#</th>
-                    <th className="pb-2 font-medium">Station</th>
-                    <th className="pb-2 font-medium">Bereich</th>
-                    <th className="pb-2 text-right font-medium">Bester</th>
-                    <th className="pb-2 text-right font-medium">Ø</th>
-                    <th className="pb-2 text-right font-medium">Verlust</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {trace.hops.map((h) => (
-                    <tr key={h.hop}>
-                      <td className="py-1.5 tabular-nums text-faint">{h.hop}</td>
-                      <td className="py-1.5 tabular-nums">{h.address ?? "*"}</td>
-                      <td className="py-1.5"><Badge tone={KIND[h.kind].tone}>{KIND[h.kind].label}</Badge></td>
-                      <td className="py-1.5 text-right tabular-nums">{h.bestMs != null ? `${num(h.bestMs)} ms` : "—"}</td>
-                      <td className="py-1.5 text-right tabular-nums">{h.avgMs != null ? `${num(h.avgMs)} ms` : "—"}</td>
-                      <td className={`py-1.5 text-right tabular-nums ${h.lossPercent > 0 ? "text-bad" : "text-muted"}`}>{num(h.lossPercent)} %</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
       </div>
     </>
   );

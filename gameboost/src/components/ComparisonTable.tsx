@@ -10,7 +10,7 @@ function Change({ row }: { row: Compared }) {
   if (row.verdict === "same")
     return (
       <span className="inline-flex items-center gap-1 text-muted">
-        <Minus size={13} /> gleich {text && <span className="text-faint">({text})</span>}
+        <Minus size={13} /> gleich
       </span>
     );
   const good = row.verdict === "better";
@@ -29,7 +29,13 @@ export function ComparisonTable({ before, after }: { before: Measurement; after:
   return (
     <div>
       <p className="mb-3 text-sm text-text">{summary(rows)}</p>
-      <table className="w-full text-sm">
+      <table className="w-full table-fixed text-sm">
+        <colgroup>
+          <col />
+          <col className="w-24" />
+          <col className="w-24" />
+          <col className="w-28" />
+        </colgroup>
         <thead>
           <tr className="text-left text-xs text-faint">
             <th className="pb-2 font-medium">Wert</th>
@@ -43,11 +49,11 @@ export function ComparisonTable({ before, after }: { before: Measurement; after:
             <tr key={r.def.key}>
               <td className="py-2">
                 <div>{r.def.label}</div>
-                <div className="text-[11px] text-faint">{r.def.hint}</div>
+                <div className="hidden truncate text-[11px] text-faint lg:block">{r.def.hint}</div>
               </td>
-              <td className="py-2 text-right tabular-nums text-muted">{r.before == null ? "—" : `${num(r.before, r.def.digits)} ${r.def.unit}`}</td>
-              <td className="py-2 text-right tabular-nums">{r.after == null ? "—" : `${num(r.after, r.def.digits)} ${r.def.unit}`}</td>
-              <td className="py-2 pl-4 text-right tabular-nums"><Change row={r} /></td>
+              <td className="whitespace-nowrap py-2 text-right tabular-nums text-muted">{r.before == null ? "—" : `${num(r.before, r.def.digits)} ${r.def.unit}`}</td>
+              <td className="whitespace-nowrap py-2 text-right tabular-nums">{r.after == null ? "—" : `${num(r.after, r.def.digits)} ${r.def.unit}`}</td>
+              <td className="whitespace-nowrap py-2 pl-2 text-right tabular-nums"><Change row={r} /></td>
             </tr>
           ))}
         </tbody>

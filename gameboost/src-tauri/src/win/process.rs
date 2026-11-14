@@ -99,6 +99,23 @@ pub fn set_priority(pid: u32, class: u32) -> Result<(), String> {
 }
 
 pub const PRIORITY_HIGH: u32 = HIGH_PRIORITY_CLASS;
+pub const PRIORITY_NORMAL: u32 = NORMAL_PRIORITY_CLASS;
+pub const PRIORITY_BELOW_NORMAL: u32 = BELOW_NORMAL_PRIORITY_CLASS;
+
+/// Energiespar-Drosselung (EcoQoS) für einen Prozess aus (`true`) oder Windows überlassen (`false`).
+pub fn set_power_throttling_off(pid: u32, off: bool) -> Result<(), String> {
+    let h = open(pid, PROCESS_SET_INFORMATION).ok_or_else(|| os_err("Prozess erlaubt keine Änderung"))?;
+    let state = PROCESS_POWER_THROTTLING_STATE {
+        Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+        ControlMask: if off { PROCESS_POWER_THROTTLING_EXECUTION_SPEED } else { 0 },
+        StateMask: 0,
+    };
+    // SAFETY: gültiges Handle, Struktur mit korrekter Größe.
+    let ok = unsafe {
+        SetProcessInformation(h.0, ProcessPowerThrottling, (&state as *const PROCESS_POWER_THROTTLING_STATE).cast(), std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32)
+    };
+    if ok != 0 { Ok(()) } else { Err(os_err("Energiespar-Drosselung nicht änderbar")) }
+}
 
 unsafe extern "system" fn post_close(hwnd: HWND, lparam: LPARAM) -> i32 {
     let mut pid = 0u32;

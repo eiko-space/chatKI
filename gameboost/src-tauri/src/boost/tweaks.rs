@@ -24,6 +24,8 @@ mod stub {
     pub fn wlan_low_latency() -> Applied { Err(NA.into()) }
     pub fn purge_standby_list() -> Applied { Err(NA.into()) }
     pub fn device_power() -> Applied { Err(NA.into()) }
+    pub fn cpu_full() -> Applied { Err(NA.into()) }
+    pub fn background_priority(_mic: &[String]) -> Applied { Err(NA.into()) }
     pub fn mouse_accel() -> Applied { Err(NA.into()) }
     pub fn no_interruptions() -> Applied { Err(NA.into()) }
     pub fn revert(_r: &Revert) -> Result<String, String> { Err(NA.into()) }
@@ -94,12 +96,46 @@ mod imp {
     // ------------------------------------------------------------------ Priorität
 
     pub fn game_priority(pid: u32, exe: &str) -> Applied {
+        let mut parts = Vec::new();
+        let mut done = Vec::new();
         let previous = process::get_priority(pid)?;
-        if previous == process::PRIORITY_HIGH {
-            return Ok((format!("{exe} lief bereits mit hoher Priorität."), None));
+        if previous != process::PRIORITY_HIGH {
+            process::set_priority(pid, process::PRIORITY_HIGH)?;
+            parts.push(Revert::Priority { pid, exe: exe.into(), previous });
+            done.push("hohe Priorität");
         }
-        process::set_priority(pid, process::PRIORITY_HIGH)?;
-        Ok((format!("{exe} läuft jetzt mit hoher Priorität."), Some(Revert::Priority { pid, exe: exe.into(), previous })))
+        // Windows soll das Spiel nie zum Stromsparen drosseln (wichtig bei CPUs mit P- und E-Kernen)
+        if process::set_power_throttling_off(pid, true).is_ok() {
+            parts.push(Revert::PowerThrottle { pid, exe: exe.into() });
+            done.push("keine Energiespar-Drosselung");
+        }
+        if parts.is_empty() {
+            return Ok((format!("{exe} lief bereits bevorzugt."), None));
+        }
+        Ok((format!("{exe}: {}.", done.join(", ")), Some(Revert::Multi { parts })))
+    }
+
+    /// Browser bekommen weniger CPU als das Spiel – nichts wird beendet.
+    const BROWSERS: &[&str] = &["chrome.exe", "msedge.exe", "firefox.exe", "opera.exe", "opera_gx.exe", "brave.exe", "vivaldi.exe", "librewolf.exe", "zen.exe"];
+
+    pub fn background_priority(mic: &[String]) -> Applied {
+        let mut items = Vec::new();
+        for p in process::list() {
+            if !BROWSERS.iter().any(|b| b.eq_ignore_ascii_case(&p.name)) || protect::check(&p.name, mic).is_some() || !process::in_my_session(p.pid) {
+                continue;
+            }
+            if let Ok(prev) = process::get_priority(p.pid) {
+                if prev == process::PRIORITY_NORMAL && process::set_priority(p.pid, process::PRIORITY_BELOW_NORMAL).is_ok() {
+                    items.push((p.pid, p.name.clone(), prev));
+                }
+            }
+        }
+        if items.is_empty() {
+            return Ok(("Kein Browser geöffnet – nichts zu tun.".into(), None));
+        }
+        let mut names: Vec<String> = items.iter().map(|(_, n, _)| n.clone()).collect();
+        names.dedup();
+        Ok((format!("Gedrosselt: {}.", names.join(", ")), Some(Revert::Priorities { items })))
     }
 
     // ------------------------------------------------------------------ Hintergrund-Apps
@@ -237,7 +273,12 @@ mod imp {
     }
 
     /// Windows Update, Hintergrundübertragung (BITS) und Übermittlungsoptimierung.
-    const UPDATE_SERVICES: &[(&str, &str)] = &[("wuauserv", "Windows Update"), ("BITS", "Hintergrundübertragung"), ("DoSvc", "Übermittlungsoptimierung")];
+    const UPDATE_SERVICES: &[(&str, &str)] = &[
+        ("wuauserv", "Windows Update"),
+        ("BITS", "Hintergrundübertragung"),
+        ("DoSvc", "Übermittlungsoptimierung"),
+        ("WSearch", "Windows-Suche"),
+    ];
 
     pub fn stop_update_services() -> Applied {
         let mut stopped = Vec::new();
@@ -444,6 +485,36 @@ mod imp {
         if r == 0 { Ok(()) } else { Err(format!("Windows-Fehler {r}")) }
     }
 
+    /// Prozessor-Einstellungen im Energieplan: (Einstellung, Zielwert, Name)
+    const CPU_SUB: u128 = 0x54533251_82be_4824_96c1_47b60b740d00;
+    const CPU_FULL: &[(u128, u32, &str)] = &[
+        (0x893dee8e_2bef_41e0_89c6_b55d0929964c, 100, "Mindestleistung 100 %"),
+        (0x0cc5b647_c1df_4637_891a_dec35c318583, 100, "kein Kern-Parken"),
+        (0xbe337238_0d82_4146_a960_4f3749d470c7, 2, "Turbo aggressiv"),
+    ];
+
+    pub fn cpu_full() -> Applied {
+        let scheme = active_scheme().ok_or("Aktueller Energieplan konnte nicht gelesen werden.")?;
+        let sub = GUID::from_u128(CPU_SUB);
+        let mut saved = Vec::new();
+        let mut changed = Vec::new();
+        for (set, target, name) in CPU_FULL {
+            let set = GUID::from_u128(*set);
+            let Some((ac, dc)) = power_value(&scheme, &sub, &set) else { continue };
+            if ac == *target && dc == *target {
+                continue;
+            }
+            write_power_value(&scheme, &sub, &set, *target, *target)?;
+            saved.push((guid_str(&sub), guid_str(&set), ac, dc));
+            changed.push(*name);
+        }
+        if saved.is_empty() {
+            return Ok(("War bereits so eingestellt – nichts geändert.".into(), None));
+        }
+        set_scheme(&scheme)?;
+        Ok((format!("{}.", changed.join(", ")), Some(Revert::DevicePower { scheme: guid_str(&scheme), values: saved })))
+    }
+
     pub fn device_power() -> Applied {
         let scheme = active_scheme().ok_or("Aktueller Energieplan konnte nicht gelesen werden.")?;
         let mut saved = Vec::new();
@@ -613,11 +684,30 @@ mod imp {
                 Ok("Einrastfunktion wiederhergestellt.".into())
             }
             Revert::Multi { parts } => {
-                let mut msgs = Vec::new();
+                // Alle Teile versuchen – ein Fehler darf die anderen nicht verhindern.
+                let (mut ok, mut errs) = (Vec::new(), Vec::new());
                 for p in parts.iter().rev() {
-                    msgs.push(revert(p)?);
+                    match revert(p) {
+                        Ok(m) => ok.push(m),
+                        Err(e) => errs.push(e),
+                    }
                 }
-                Ok(msgs.join(" "))
+                if errs.is_empty() { Ok(ok.join(" ")) } else { Err(errs.join("; ")) }
+            }
+            Revert::PowerThrottle { pid, exe } => {
+                if process::list().into_iter().any(|p| p.pid == *pid && p.name.eq_ignore_ascii_case(exe)) {
+                    let _ = process::set_power_throttling_off(*pid, false);
+                }
+                Ok("Energiespar-Drosselung wieder Windows überlassen.".into())
+            }
+            Revert::Priorities { items } => {
+                let running = process::list();
+                for (pid, name, prev) in items {
+                    if running.iter().any(|p| p.pid == *pid && p.name.eq_ignore_ascii_case(name)) {
+                        let _ = process::set_priority(*pid, *prev);
+                    }
+                }
+                Ok("Prioritäten zurückgesetzt.".into())
             }
         }
     }
@@ -703,7 +793,7 @@ mod windows_tests {
     #[test]
     #[ignore = "verändert Systemeinstellungen – nur in CI"]
     fn new_tweaks_apply_and_revert() {
-        for (name, f) in [("device_power", device_power as fn() -> Applied), ("mouse_accel", mouse_accel), ("no_interruptions", no_interruptions)] {
+        for (name, f) in [("device_power", device_power as fn() -> Applied), ("cpu_full", cpu_full), ("mouse_accel", mouse_accel), ("no_interruptions", no_interruptions)] {
             match f() {
                 Ok((m, rev)) => {
                     println!("{name}: {m}");
