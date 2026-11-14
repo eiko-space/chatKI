@@ -6,12 +6,14 @@ mod commands;
 mod elevation;
 mod games;
 mod netdiag;
+mod overlay;
 mod pccheck;
 mod sessions;
 mod settings;
 mod storage;
 mod telemetry;
 mod tray;
+mod watcher;
 mod win;
 
 use boost::{BoostEngine, BoostStatus, TweakResult};
@@ -45,7 +47,21 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             tray::show_main_window(app);
         }))
+        .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        overlay::toggle(app);
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
+            // Beim Windows-Autostart (--minimized) nur im Tray starten
+            if !std::env::args().any(|a| a == "--minimized") {
+                tray::show_main_window(app.handle());
+            }
             let data_dir = app.path().app_data_dir()?;
             app.manage(SettingsStore::load(&data_dir));
             app.manage(BoostEngine::load(&data_dir));
@@ -60,11 +76,16 @@ pub fn run() {
                 let _ = hub.start_capture();
             }
             app.manage(hub);
+            watcher::start(app.handle().clone());
+            if let Err(e) = overlay::apply(app.handle()) {
+                eprintln!("Overlay: {e}");
+            }
             Ok(())
         })
         // Fenster schließen = in den Tray minimieren. Beenden geht über das Tray-Menü.
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
+                // Nur das Hauptfenster wird in den Tray verschoben; das Overlay darf sich schließen.
                 if window.label() == "main" {
                     api.prevent_close();
                     let _ = window.hide();
@@ -74,6 +95,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::system::get_app_info,
             commands::system::restart_as_admin,
+            commands::system::get_autostart,
+            commands::system::set_autostart,
+            commands::system::apply_overlay,
             commands::telemetry::start_fps_capture,
             commands::telemetry::stop_fps_capture,
             commands::telemetry::start_measurement,

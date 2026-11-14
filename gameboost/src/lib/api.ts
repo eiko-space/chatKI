@@ -96,6 +96,9 @@ export const api = {
   saveSettings: (settings: Settings) => invoke<void>("save_settings", { settings }),
   setFullscreenOptimizations: (exePath: string, disable: boolean) =>
     invoke<void>("set_fullscreen_optimizations", { exePath, disable }),
+  getAutostart: () => invoke<boolean>("get_autostart"),
+  setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
+  applyOverlay: () => invoke<void>("apply_overlay"),
 };
 
 export interface Measurement {

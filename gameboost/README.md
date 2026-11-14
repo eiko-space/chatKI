@@ -4,7 +4,16 @@ Ehrliche PC-Gaming-Optimierung für Windows 10/11 – Tauri 2 (Rust) + React + T
 
 **Grundregel:** Die App zeigt nur echte, gemessene Werte. Was (noch) nicht gemessen wird, erscheint als „—“.
 
-## Voraussetzungen (Windows)
+## Fertigen Installer herunterladen (ohne Programmieren)
+
+Bei jedem Push baut GitHub die App automatisch auf einem Windows-Rechner, testet sie und erstellt einen Installer:
+**GitHub → Actions → „GameBoost (Windows)“ → neuester grüner Lauf → Artifacts → „GameBoost-Installer“**.
+Darin liegen `GameBoost_…_x64-setup.exe` (empfohlen) und eine `.msi`.
+
+> Der Installer ist noch nicht digital signiert. Windows SmartScreen zeigt deshalb ggf. „Der Computer wurde geschützt“ →
+> „Weitere Informationen“ → „Trotzdem ausführen“. Für eine Veröffentlichung sollte ein Code-Signing-Zertifikat genutzt werden.
+
+## Voraussetzungen zum Selbst-Bauen (Windows)
 
 1. [Node.js 20+](https://nodejs.org)
 2. [Rust](https://rustup.rs) (Standard-Toolchain `stable-x86_64-pc-windows-msvc`)
@@ -49,6 +58,27 @@ Anmelde-Tokens werden in der **Windows-Anmeldeinformationsverwaltung** gespeiche
 Synchronisiert werden nur geräteunabhängige Einstellungen und die Messungen. Die Spalte `profiles.plan`
 (free/pro) ist für eine spätere Pro-Version vorbereitet und kann nur serverseitig geändert werden.
 
+## Overlay, Auto-Boost & Benachrichtigungen
+
+- **Overlay** (Einstellungen): eigenes, durchsichtiges Fenster, immer im Vordergrund, Klicks gehen durch.
+  Kein Hooking/keine Injection → Anti-Cheat-sicher. Funktioniert in „Randloses Fenster“, nicht im exklusiven Vollbild.
+  Ein-/Ausblenden per Tastenkürzel (Standard `Ctrl+Shift+O`).
+- **Auto-Boost** (Profile/Einstellungen): erkennt bekannte Spiele und eigene Profile, startet den Boost und setzt
+  ihn nach dem Spiel automatisch zurück.
+- **Benachrichtigungen**: bei hoher GPU-Temperatur (Grenze einstellbar) und bei Ping-Spitzen/Paketverlust während
+  eines Spiels – höchstens alle 10 Minuten.
+- **Mit Windows starten**: startet minimiert im Tray.
+
+## Auto-Update aktivieren (für Veröffentlichungen)
+
+Automatische Updates brauchen signierte Update-Pakete. Vorgehen:
+1. `npx tauri signer generate -w ~/.tauri/gameboost.key` (privaten Schlüssel sicher aufbewahren!)
+2. Den privaten Schlüssel als GitHub-Secret `TAURI_SIGNING_PRIVATE_KEY` hinterlegen.
+3. `tauri-plugin-updater` einbinden, den öffentlichen Schlüssel und die Update-URL (z. B. GitHub Releases)
+   in `tauri.conf.json` unter `plugins.updater` eintragen.
+
+Bis dahin aktualisiert man, indem man den neuen Installer über die alte Version installiert – Einstellungen bleiben erhalten.
+
 ## Tests
 
 ```bash
@@ -80,4 +110,4 @@ src-tauri/              Rust-Backend
 4. ✅ Vorher-/Nachher-Messung
 5. ✅ Netzwerk-Tools und PC-Check
 6. ✅ Login (Supabase) + Cloud-Sync
-7. Overlay, Auto-Boost, Installer
+7. ✅ Overlay, Auto-Boost, Benachrichtigungen, Installer

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
@@ -6,7 +6,7 @@ import { Button } from "../components/ui/Button";
 import { Toggle } from "../components/ui/Toggle";
 import { Dialog } from "../components/ui/Dialog";
 import { useAppState } from "../lib/app-state";
-import { api, type RunningApp } from "../lib/api";
+import { api, type OverlaySettings, type RunningApp } from "../lib/api";
 import { isTauri, type AppInfo } from "../lib/tauri";
 import { num } from "../lib/format";
 
@@ -15,6 +15,23 @@ export default function SettingsPage({ info }: { info: AppInfo | null }) {
   const [picker, setPicker] = useState(false);
   const [running, setRunning] = useState<RunningApp[]>([]);
   const [manual, setManual] = useState("");
+  const [autostart, setAutostart] = useState(false);
+  const [overlayMsg, setOverlayMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isTauri()) api.getAutostart().then(setAutostart).catch(() => {});
+  }, []);
+
+  const setOverlay = async (patch: Partial<OverlaySettings>) => {
+    setOverlayMsg(null);
+    await updateSettings((s) => ({ ...s, overlay: { ...s.overlay, ...patch } }));
+    try {
+      await api.applyOverlay();
+    } catch (e) {
+      setOverlayMsg(String(e));
+    }
+  };
+  const ov = settings?.overlay;
 
   const openPicker = async () => {
     setPicker(true);
@@ -80,6 +97,20 @@ export default function SettingsPage({ info }: { info: AppInfo | null }) {
 
         <Card className="col-span-12 lg:col-span-5" title="App-Verhalten">
           <div className="space-y-4">
+            <Row label="Mit Windows starten" hint="Startet unauffällig im System-Tray">
+              <Toggle
+                label="Mit Windows starten"
+                checked={autostart}
+                disabled={!isTauri()}
+                onChange={async (v) => {
+                  await api.setAutostart(v);
+                  setAutostart(v);
+                }}
+              />
+            </Row>
+            <Row label="Auto-Boost" hint="Boost automatisch beim Spielstart, Zurücksetzen danach">
+              <Toggle label="Auto-Boost" checked={settings?.autoBoost ?? false} disabled={!settings} onChange={(v) => updateSettings((s) => ({ ...s, autoBoost: v }))} />
+            </Row>
             <Row label="Benachrichtigungen" hint="Bei Überhitzung oder Ping-Spitzen">
               <Toggle label="Benachrichtigungen" checked={settings?.notifications ?? false} disabled={!settings} onChange={(v) => updateSettings((s) => ({ ...s, notifications: v }))} />
             </Row>
@@ -105,6 +136,56 @@ export default function SettingsPage({ info }: { info: AppInfo | null }) {
               Version {info.version} · {info.os} {info.osVersion} · Admin-Rechte: {info.isElevated ? "ja" : "nein"}
             </p>
           )}
+        </Card>
+        <Card className="col-span-12" title="In-Game-Overlay" subtitle={`FPS, Ping und Temperatur über dem Spiel · ein-/ausblenden mit ${ov?.hotkey ?? "Strg+Umschalt+O"}`}>
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-4">
+              <Row label="Overlay aktivieren">
+                <Toggle label="Overlay aktivieren" checked={ov?.enabled ?? false} disabled={!settings} onChange={(v) => setOverlay({ enabled: v })} />
+              </Row>
+              <Row label="Position">
+                <select
+                  value={ov?.position ?? "top-left"}
+                  disabled={!settings}
+                  aria-label="Position"
+                  onChange={(e) => setOverlay({ position: e.target.value as OverlaySettings["position"] })}
+                  className="h-9 rounded-lg border border-line bg-surface-2 px-2 text-sm text-text"
+                >
+                  <option value="top-left">Oben links</option>
+                  <option value="top-right">Oben rechts</option>
+                  <option value="bottom-left">Unten links</option>
+                  <option value="bottom-right">Unten rechts</option>
+                </select>
+              </Row>
+              <Row label="Größe" hint={`${num((ov?.scale ?? 1) * 100)} %`}>
+                <input
+                  type="range" min={0.8} max={1.6} step={0.1} aria-label="Größe"
+                  value={ov?.scale ?? 1} disabled={!settings}
+                  onChange={(e) => setOverlay({ scale: Number(e.target.value) })}
+                  className="w-32 accent-[var(--color-accent)]"
+                />
+              </Row>
+              <Row label="Tastenkürzel" hint="z. B. Ctrl+Shift+O oder Alt+F10">
+                <input
+                  defaultValue={ov?.hotkey ?? "Ctrl+Shift+O"}
+                  key={ov?.hotkey}
+                  aria-label="Tastenkürzel"
+                  onBlur={(e) => e.target.value !== ov?.hotkey && setOverlay({ hotkey: e.target.value.trim() })}
+                  className="h-9 w-36 rounded-lg border border-line bg-surface-2 px-3 text-sm text-text"
+                />
+              </Row>
+            </div>
+            <div className="space-y-4">
+              <Row label="FPS anzeigen"><Toggle label="FPS anzeigen" checked={ov?.showFps ?? true} disabled={!settings} onChange={(v) => setOverlay({ showFps: v })} /></Row>
+              <Row label="Ping anzeigen"><Toggle label="Ping anzeigen" checked={ov?.showPing ?? true} disabled={!settings} onChange={(v) => setOverlay({ showPing: v })} /></Row>
+              <Row label="GPU-Temperatur anzeigen"><Toggle label="GPU-Temperatur anzeigen" checked={ov?.showTemp ?? true} disabled={!settings} onChange={(v) => setOverlay({ showTemp: v })} /></Row>
+              <p className="text-xs text-faint">
+                Das Overlay ist ein eigenes, durchsichtiges Fenster – es greift nicht ins Spiel ein (Anti-Cheat-sicher).
+                Darum erscheint es nur, wenn das Spiel im Modus „Randloses Fenster“ bzw. „Vollbild (Fenster)“ läuft, nicht im exklusiven Vollbild.
+              </p>
+              {overlayMsg && <p className="text-xs text-bad">{overlayMsg}</p>}
+            </div>
+          </div>
         </Card>
       </div>
 

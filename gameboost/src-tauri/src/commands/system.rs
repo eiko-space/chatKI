@@ -32,3 +32,48 @@ pub fn restart_as_admin(app: tauri::AppHandle) -> Result<(), String> {
     app.exit(0);
     Ok(())
 }
+
+const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+
+/// Startet GameBoost mit Windows (minimiert im Tray)?
+#[tauri::command]
+pub fn get_autostart() -> bool {
+    #[cfg(windows)]
+    {
+        winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER)
+            .open_subkey(RUN_KEY)
+            .and_then(|k| k.get_value::<String, _>("GameBoost"))
+            .is_ok()
+    }
+    #[cfg(not(windows))]
+    false
+}
+
+#[tauri::command]
+pub fn set_autostart(enabled: bool) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use winreg::{enums::HKEY_CURRENT_USER, RegKey};
+        let (key, _) = RegKey::predef(HKEY_CURRENT_USER).create_subkey(RUN_KEY).map_err(|e| e.to_string())?;
+        if enabled {
+            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+            key.set_value("GameBoost", &format!("\"{}\" --minimized", exe.display())).map_err(|e| e.to_string())
+        } else {
+            match key.delete_value("GameBoost") {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
+                _ => Ok(()),
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (enabled, RUN_KEY);
+        Err("Nur unter Windows verfügbar.".into())
+    }
+}
+
+/// Overlay-Fenster und Tastenkürzel nach geänderten Einstellungen neu anwenden.
+#[tauri::command]
+pub fn apply_overlay(app: tauri::AppHandle) -> Result<(), String> {
+    crate::overlay::apply(&app)
+}
