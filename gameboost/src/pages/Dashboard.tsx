@@ -174,10 +174,9 @@ function FpsCard({ info, snapshot }: { info: AppInfo | null; snapshot: Snapshot 
         </p>
         {info?.isDev ? (
           <p>
-            <b className="text-text">Entwicklungsmodus:</b> Schließe die App und das schwarze Fenster. Öffne dann das
-            Startmenü, tippe <b className="text-text">cmd</b>, wähle <b className="text-text">„Als Administrator ausführen“</b>,
-            wechsle mit <code className="text-text">cd /d &lt;Pfad zu gameboost&gt;</code> in den Ordner und starte mit{" "}
-            <code className="text-text">npm run tauri dev</code>.
+            <b className="text-text">Entwicklungsmodus:</b> Schließe die App und das schwarze Fenster. Mach dann im Ordner
+            „gameboost“ einen <b className="text-text">Rechtsklick auf „GameBoost-Start.bat“</b> und wähle{" "}
+            <b className="text-text">„Als Administrator ausführen“</b>.
           </p>
         ) : (
           <p>GameBoost startet neu und Windows fragt dich einmal, ob du das erlaubst.</p>

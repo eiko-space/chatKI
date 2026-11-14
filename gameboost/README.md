@@ -26,8 +26,8 @@ npm run dev            # nur Oberfläche im Browser (ohne Systemzugriff)
 `npm install` lädt automatisch [Intel PresentMon](https://github.com/GameTechDev/PresentMon) 2.4.1 (MIT-Lizenz)
 nach `src-tauri/bin/` und prüft die SHA-256-Prüfsumme. Manuell: `npm run fetch-presentmon`.
 
-Die FPS-Messung braucht Administratorrechte (Windows-ETW). Im Entwicklungsmodus das Befehlsfenster
-„Als Administrator ausführen“ und dort `npm run tauri dev` starten.
+Die FPS-Messung braucht Administratorrechte (Windows-ETW). Im Entwicklungsmodus: Rechtsklick auf
+`GameBoost-Start.bat` → „Als Administrator ausführen“.
 
 ## Tests
 
