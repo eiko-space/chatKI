@@ -162,3 +162,17 @@ fn os_err(context: &str) -> String {
 pub fn exists(pid: u32) -> bool {
     open(pid, PROCESS_QUERY_LIMITED_INFORMATION).is_some()
 }
+
+/// Verbrauchte CPU-Zeit (Kernel + Benutzer) eines Prozesses in 100-ns-Einheiten.
+pub fn cpu_time(pid: u32) -> Option<u64> {
+    use windows_sys::Win32::Foundation::FILETIME;
+    let h = open(pid, PROCESS_QUERY_LIMITED_INFORMATION)?;
+    let z = || FILETIME { dwLowDateTime: 0, dwHighDateTime: 0 };
+    let (mut c, mut e, mut k, mut u) = (z(), z(), z(), z());
+    // SAFETY: gültiges Handle, Ausgabezeiger gültig.
+    if unsafe { GetProcessTimes(h.0, &mut c, &mut e, &mut k, &mut u) } == 0 {
+        return None;
+    }
+    let ft = |f: FILETIME| ((f.dwHighDateTime as u64) << 32) | f.dwLowDateTime as u64;
+    Some(ft(k) + ft(u))
+}

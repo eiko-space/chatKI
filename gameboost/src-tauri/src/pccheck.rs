@@ -131,6 +131,16 @@ fn days_from_civil(y: i64, m: i64, d: i64) -> Option<i64> {
 #[cfg(windows)]
 pub use imp::{run_checks, run_fix};
 
+/// Höchste Bildwiederholrate des Hauptmonitors (für den FPS-Limit-Finder).
+#[cfg(windows)]
+pub fn primary_monitor_hz() -> Option<u32> {
+    imp::displays().first().map(|d| d.current.max(d.max))
+}
+#[cfg(not(windows))]
+pub fn primary_monitor_hz() -> Option<u32> {
+    None
+}
+
 #[cfg(not(windows))]
 pub fn run_checks(_gpu_name: Option<String>, _gpu_temp: Option<f32>, _wlan: bool) -> CheckReport {
     CheckReport { score: 0, items: Vec::new() }

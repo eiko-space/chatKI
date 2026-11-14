@@ -39,3 +39,13 @@ pub fn save_session(app: tauri::AppHandle, store: State<'_, crate::sessions::Ses
 pub fn delete_session(store: State<'_, crate::sessions::SessionStore>, id: String) -> Result<(), String> {
     store.delete(&id)
 }
+
+#[tauri::command]
+pub fn get_stutter_events(hub: State<'_, Arc<Hub>>) -> Vec<crate::telemetry::detective::Event> {
+    hub.detective.lock().unwrap().events()
+}
+
+#[tauri::command]
+pub fn clear_stutter_events(hub: State<'_, Arc<Hub>>) {
+    hub.detective.lock().unwrap().clear();
+}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { BoostControl } from "../components/BoostControl";
 import { BoostEffect } from "../components/BoostEffect";
+import { StutterLog } from "../components/StutterLog";
 import { AlertTriangle, Cpu, Gamepad2, Loader2, Play, ShieldCheck, Square, Wifi, WifiOff } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Metric } from "../components/ui/Metric";
@@ -41,6 +42,7 @@ export default function Dashboard({ info }: { info: AppInfo | null }) {
         <BoostEffect />
         <NetworkCard snapshot={snapshot} />
         <HardwareCard snapshot={snapshot} />
+        <StutterLog />
       </div>
     </>
   );

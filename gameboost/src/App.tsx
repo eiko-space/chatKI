@@ -18,6 +18,7 @@ import Profiles from "./pages/Profiles";
 import SettingsPage from "./pages/Settings";
 import Account from "./pages/Account";
 import Advantages from "./pages/Advantages";
+import Tools from "./pages/Tools";
 
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="/vorteile" element={<Advantages />} />
             <Route path="/netzwerk" element={<Network />} />
             <Route path="/pc-check" element={<PcCheck info={info} />} />
+            <Route path="/werkzeuge" element={<Tools />} />
             <Route path="/verlauf" element={<HistoryPage />} />
             <Route path="/profile" element={<Profiles />} />
             <Route path="/einstellungen" element={<SettingsPage info={info} />} />

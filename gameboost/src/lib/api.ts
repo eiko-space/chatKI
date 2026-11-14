@@ -212,3 +212,90 @@ export const toolsApi = {
   pcCheck: () => invoke<CheckReport>("run_pc_check"),
   pcFix: (id: string) => invoke<string>("run_pc_fix", { id }),
 };
+
+export interface StutterContext {
+  cpu: number | null;
+  gpu: number | null;
+  ram: number | null;
+  disk: number | null;
+  downloadMbps: number | null;
+  uploadMbps: number | null;
+  wlan: boolean;
+  top: { exe: string; cpu: number }[];
+}
+
+export interface StutterEvent {
+  time: number;
+  kind: "stutter" | "ping";
+  valueMs: number;
+  normalMs: number | null;
+  game: string | null;
+  cause: string;
+  context: StutterContext;
+}
+
+export interface LagResult {
+  idleMs: number | null;
+  downloadLoadMs: number | null;
+  uploadLoadMs: number | null;
+  downloadMbps: number | null;
+  uploadMbps: number | null;
+  addedMs: number | null;
+  grade: string;
+  verdict: string;
+  tips: string[];
+}
+
+export interface InstalledGame {
+  name: string;
+  exe: string;
+  path: string;
+  drive: string;
+  onHdd: boolean | null;
+}
+
+export interface OverlayApp {
+  exe: string;
+  name: string;
+  how: string;
+}
+
+export interface ShaderCache {
+  label: string;
+  path: string;
+  sizeMb: number;
+}
+
+export interface ConfigGame {
+  id: string;
+  name: string;
+  available: boolean;
+  optimized: boolean;
+  summary: string;
+  changes: string[];
+}
+
+export interface FpsAdvice {
+  situation: "gpu_bound" | "cpu_bound" | "headroom" | "unknown";
+  headline: string;
+  detail: string;
+  recommendedCap: number | null;
+  how: string[];
+}
+
+export const detectiveApi = {
+  events: () => invoke<StutterEvent[]>("get_stutter_events"),
+  clear: () => invoke<void>("clear_stutter_events"),
+};
+
+export const labApi = {
+  lagTest: () => invoke<LagResult>("lag_test"),
+  gamesStorage: () => invoke<InstalledGame[]>("games_storage"),
+  overlays: () => invoke<OverlayApp[]>("active_overlays"),
+  shaderCaches: () => invoke<ShaderCache[]>("shader_caches"),
+  clearShaders: () => invoke<string>("clear_shader_caches"),
+  gameConfigs: () => invoke<ConfigGame[]>("game_configs"),
+  applyConfig: (id: string) => invoke<string>("apply_game_config", { id }),
+  restoreConfig: (id: string) => invoke<string>("restore_game_config", { id }),
+  fpsAdvice: () => invoke<FpsAdvice>("fps_advice"),
+};

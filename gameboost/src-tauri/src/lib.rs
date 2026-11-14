@@ -4,13 +4,18 @@ mod auth;
 mod boost;
 mod commands;
 mod elevation;
+mod fpslimit;
 mod games;
+mod gameconfig;
+mod gametools;
+mod lagtest;
 mod netdiag;
 mod overlay;
 mod pccheck;
 mod sessions;
 mod settings;
 mod storage;
+mod storage_info;
 mod telemetry;
 mod tray;
 mod vision;
@@ -138,6 +143,8 @@ pub fn run() {
             commands::telemetry::list_sessions,
             commands::telemetry::save_session,
             commands::telemetry::delete_session,
+            commands::telemetry::get_stutter_events,
+            commands::telemetry::clear_stutter_events,
             commands::boost::get_boost_catalog,
             commands::boost::get_boost_status,
             commands::boost::apply_boost,
@@ -159,6 +166,15 @@ pub fn run() {
             commands::tools::region_ping,
             commands::tools::traceroute,
             commands::tools::net_apps,
+            commands::tools::lag_test,
+            commands::tools::games_storage,
+            commands::tools::active_overlays,
+            commands::tools::shader_caches,
+            commands::tools::clear_shader_caches,
+            commands::tools::game_configs,
+            commands::tools::apply_game_config,
+            commands::tools::restore_game_config,
+            commands::tools::fps_advice,
             commands::tools::run_pc_check,
             commands::tools::run_pc_fix,
         ])

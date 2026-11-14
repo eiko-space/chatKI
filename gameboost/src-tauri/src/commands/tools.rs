@@ -46,3 +46,76 @@ pub async fn run_pc_fix(app: AppHandle, id: String) -> Result<String, String> {
     })
     .await?
 }
+
+#[tauri::command]
+pub async fn lag_test(app: AppHandle) -> Result<crate::lagtest::LagResult, String> {
+    use tauri::Emitter;
+    blocking(move || {
+        crate::lagtest::run(&|pct, step| {
+            let _ = app.emit("lagtest-progress", serde_json::json!({ "percent": pct, "step": step }));
+        })
+    })
+    .await?
+}
+
+#[tauri::command]
+pub fn games_storage(store: tauri::State<'_, crate::settings::SettingsStore>) -> Vec<crate::gametools::InstalledGame> {
+    crate::gametools::running_games_storage(&store.get().profiles)
+}
+
+#[tauri::command]
+pub fn active_overlays() -> Vec<crate::gametools::Overlay> {
+    crate::gametools::active_overlays()
+}
+
+#[tauri::command]
+pub fn shader_caches() -> Vec<crate::gametools::ShaderCache> {
+    crate::gametools::shader_caches()
+}
+
+#[tauri::command]
+pub async fn clear_shader_caches(app: AppHandle) -> Result<String, String> {
+    blocking(move || {
+        let res = crate::gametools::clear_shader_caches();
+        let engine = app.state::<BoostEngine>();
+        match &res {
+            Ok(m) => engine.log("shader", "Shader-Cache geleert", "applied", m),
+            Err(e) => engine.log("shader", "Shader-Cache geleert", "failed", e),
+        }
+        res
+    })
+    .await?
+}
+
+#[tauri::command]
+pub fn game_configs() -> Vec<crate::gameconfig::ConfigGame> {
+    crate::gameconfig::status()
+}
+
+#[tauri::command]
+pub fn apply_game_config(app: AppHandle, id: String) -> Result<String, String> {
+    let res = crate::gameconfig::apply(&id);
+    let engine = app.state::<BoostEngine>();
+    match &res {
+        Ok(m) => engine.log("gameconfig", &format!("Spiel-Einstellungen: {id}"), "applied", m),
+        Err(e) => engine.log("gameconfig", &format!("Spiel-Einstellungen: {id}"), "failed", e),
+    }
+    res
+}
+
+#[tauri::command]
+pub fn restore_game_config(app: AppHandle, id: String) -> Result<String, String> {
+    let res = crate::gameconfig::restore(&id);
+    app.state::<BoostEngine>().log("gameconfig", &format!("Spiel-Einstellungen zurück: {id}"), if res.is_ok() { "reverted" } else { "failed" }, res.as_ref().map(|s| s.as_str()).unwrap_or_else(|e| e));
+    res
+}
+
+#[tauri::command]
+pub fn fps_advice(app: AppHandle) -> crate::fpslimit::FpsAdvice {
+    let snap = app.state::<Arc<Hub>>().latest();
+    let fps = snap.as_ref().and_then(|s| s.fps.as_ref().map(|f| f.average));
+    let gpu = snap.as_ref().and_then(|s| s.gpu.usage);
+    let cpu = snap.as_ref().and_then(|s| s.system.cpu_usage);
+    let hz = crate::pccheck::primary_monitor_hz();
+    crate::fpslimit::advise(fps, gpu, cpu, hz)
+}

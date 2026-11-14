@@ -1,5 +1,6 @@
 //! Live-Messungen: sammelt alle Werte und schickt 2× pro Sekunde einen Schnappschuss an die Oberfläche.
 
+pub mod detective;
 pub mod frames;
 pub mod gpu;
 pub mod measure;
@@ -92,6 +93,7 @@ pub struct Hub {
     recording: Mutex<Option<Recording>>,
     latest: Mutex<Option<Snapshot>>,
     baseline: Mutex<Option<(Instant, Option<FpsStats>, PingStats)>>,
+    pub detective: Mutex<detective::Detective>,
 }
 
 impl Hub {
@@ -108,6 +110,7 @@ impl Hub {
             recording: Mutex::new(None),
             latest: Mutex::new(None),
             baseline: Mutex::new(None),
+            detective: Mutex::new(detective::Detective::new()),
         })
     }
 
@@ -132,7 +135,12 @@ impl Hub {
                         gpu_stats = gpu.sample();
                         link = sampler.link();
                     }
+                    if tick % 4 == 0 {
+                        // CPU je Programm & Festplatte alle 2 s (für den Ruckler-Detektiv)
+                        hub.detective.lock().unwrap().sample();
+                    }
                     let snapshot = hub.snapshot(sys.clone(), gpu_stats.clone(), link.clone());
+                    hub.detect(&snapshot);
                     if let Some(result) = hub.feed_recording(&snapshot) {
                         let _ = app.emit("measurement-finished", result);
                     }
@@ -169,6 +177,45 @@ impl Hub {
                 fps: fps.clone(),
                 ping: ping.clone(),
             }),
+        }
+    }
+
+    /// Prüft den neuesten Schnappschuss auf Ruckler und Ping-Spitzen und hält den Zusammenhang fest.
+    fn detect(&self, snap: &Snapshot) {
+        let mut det = self.detective.lock().unwrap();
+        let context = || detective::Context {
+            cpu: snap.system.cpu_usage,
+            gpu: snap.gpu.usage,
+            ram: snap.system.ram_usage,
+            disk: det.disk_busy,
+            download_mbps: snap.network.link.download_mbps,
+            upload_mbps: snap.network.link.upload_mbps,
+            wlan: snap.network.link.connection == Some("wlan"),
+            top: det.top.clone(),
+        };
+        if let Some(fps) = &snap.fps {
+            // Erst ab 100 Bildern, damit der Normalwert stabil ist
+            if fps.frame_count >= 100 {
+                if let Some(worst) = snap.frametimes.iter().copied().reduce(f32::max) {
+                    if detective::is_stutter(worst, fps.frametime_avg_ms) {
+                        let ctx = context();
+                        let game = Some(fps.game.map(str::to_string).unwrap_or_else(|| fps.app.clone()));
+                        det.record("stutter", worst, Some(fps.frametime_avg_ms), game, Some(&fps.app), ctx);
+                        return;
+                    }
+                }
+            }
+        }
+        let p = &snap.network.internet;
+        if let (Some(last), Some(th)) = (p.last_ms, p.spike_threshold_ms) {
+            // Ping-Spitzen nur festhalten, während gespielt wird
+            if last > th && snap.fps.is_some() {
+                let ctx = context();
+                // Schwelle = Median + max(30 ms, 50 %) → Median zurückrechnen
+                let normal = p.spike_threshold_ms.map(|t| if t / 1.5 >= 60.0 { t / 1.5 } else { t - 30.0 });
+                let game = snap.fps.as_ref().map(|f| f.game.map(str::to_string).unwrap_or_else(|| f.app.clone()));
+                det.record("ping", last, normal, game, None, ctx);
+            }
         }
     }
 
