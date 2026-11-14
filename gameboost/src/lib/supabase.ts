@@ -2,8 +2,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./tauri";
 
-const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+/**
+ * Projekt-Adresse bereinigen: Häufig wird versehentlich „…supabase.co/rest/v1/“ eingetragen.
+ * Supabase braucht aber nur die Basis-Adresse „https://xyz.supabase.co“.
+ */
+function cleanUrl(raw: string | undefined): string | undefined {
+  if (!raw) return raw;
+  let u = raw.trim().replace(/\s+/g, "");
+  u = u.replace(/\/(rest|auth|storage|realtime)\/v1\/?.*$/i, "");
+  u = u.replace(/\/+$/, "");
+  if (u && !/^https?:\/\//i.test(u)) u = `https://${u}`;
+  return u;
+}
+
+const URL = cleanUrl(import.meta.env.VITE_SUPABASE_URL as string | undefined);
+const KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
 
 /** Ist ein Supabase-Projekt eingetragen? Sonst läuft die App im Gast-Modus. */
 export const supabaseConfigured = Boolean(URL && KEY && !URL.includes("DEIN-PROJEKT"));
