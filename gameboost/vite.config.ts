@@ -8,6 +8,9 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   clearScreen: false,
+  // Eigene (leere) PostCSS-Konfiguration: verhindert, dass Vite eine fremde
+  // postcss.config aus einem übergeordneten Ordner lädt. Tailwind läuft über das Vite-Plugin.
+  css: { postcss: {} },
   server: {
     port: 1420,
     strictPort: true,
